@@ -281,3 +281,34 @@ def test_decision_views_retain_top_open_weight_candidates():
     performance = next(view for view in build_views(models) if view.view_id == "performance-top5")
 
     assert len(performance.model_ids) == 20
+
+
+def test_decision_tables_are_wrapped_for_horizontal_scroll():
+    models = normalize(
+        [
+            RawRecord(
+                source_id=f"aa/model-{index}",
+                name=f"Model {index} (max)",
+                intelligence_index=90 - index,
+                provenance=["artificial-analysis"],
+                artificial_analysis_model_url=f"https://artificialanalysis.ai/models/{index}",
+            )
+            for index in range(12)
+        ]
+    )
+    snapshot = Snapshot(
+        snapshot_id="scroll",
+        generated_at=datetime(2026, 9, 21, tzinfo=UTC),
+        status="complete",
+        source_status=[],
+        models=models,
+        views=build_views(models),
+    )
+
+    html = render_html(snapshot).decode("utf-8")
+
+    assert '<div class="table-scroll"><table class="decision-table"' in html
+    assert html.count('<div class="table-scroll">') == html.count("</table></div>")
+    assert ".table-scroll{max-width:100%;overflow-x:auto" in html
+    assert "nth-child(n+4)" not in html
+    assert ".ranking-card{overflow:hidden}" not in html

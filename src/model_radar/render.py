@@ -55,16 +55,19 @@ _STYLE = (
     ".ranking-card{min-width:0;background:var(--paper);border:1px solid var(--line);border-radius:18px;"
     "padding:18px;box-shadow:var(--shadow)}.ranking-card .metric{min-height:42px;margin:8px 0 16px;color:var(--muted);font-size:.78rem}"
     ".ranking-card.unavailable{background:var(--surface-muted)}.unavailable-note{padding:14px;border-radius:12px;background:var(--rose-bg);color:var(--rose);font-size:.85rem}"
-    "table{width:100%;border-collapse:separate;border-spacing:0;font-size:.84rem}th{padding:9px 10px;"
+    ".table-scroll{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}"
+    ".table-scroll table{width:100%}"
+    "table{border-collapse:separate;border-spacing:0;font-size:.84rem}th{padding:9px 10px;white-space:nowrap;"
     "color:var(--muted);font-size:.68rem;font-weight:800;letter-spacing:.07em;text-align:left;text-transform:uppercase;"
-    "border-bottom:1px solid var(--line)}td{padding:11px 10px;border-bottom:1px solid var(--row-line);vertical-align:top}"
+    "border-bottom:1px solid var(--line)}td{padding:11px 10px;border-bottom:1px solid var(--row-line);vertical-align:top;white-space:nowrap}"
     "tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:var(--hover)}"
     ".decision-row[data-open-weight='true'] td{background:var(--open-row)}.decision-row[data-open-weight='true']:hover td{background:var(--open-row-hover)}"
     ".rank{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:8px;"
     "background:var(--mint);color:#096c70;font-size:.75rem;font-weight:800}"
-    ".model{display:block;max-width:220px;color:var(--ink);font-weight:750;overflow-wrap:anywhere}"
+    ".model{display:block;max-width:220px;color:var(--ink);font-weight:750;overflow-wrap:anywhere;"
+    "white-space:normal;min-width:150px}"
     ".open-weight-mark{display:inline-block;margin-left:6px;padding:2px 5px;border:1px solid color-mix(in srgb,var(--teal) 58%,transparent);border-radius:5px;color:var(--teal);font-size:.62rem;font-weight:800;letter-spacing:.04em;vertical-align:middle}"
-    ".sub{display:block;margin-top:2px;color:var(--muted);font-size:.72rem}"
+    ".sub{display:block;margin-top:2px;color:var(--muted);font-size:.72rem;white-space:normal}"
     ".number{font-variant-numeric:tabular-nums;white-space:nowrap}.source-link{color:var(--teal);font-weight:750;text-decoration:none}"
     ".source-link{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid var(--link-border);border-radius:8px;background:var(--link-bg)}"
     ".source-link:hover{background:var(--mint);border-color:var(--teal);text-decoration:none}.external-icon{font-size:1.05rem;font-weight:900;line-height:1}.unknown{color:#98a2b3}"
@@ -72,8 +75,8 @@ _STYLE = (
     ".sort-button:hover{color:var(--teal)}.sort-button:after{content:'↕';color:#98a2b3;font-size:.8rem}.sort-button[aria-sort='ascending']:after{content:'↑';color:var(--teal)}.sort-button[aria-sort='descending']:after{content:'↓';color:var(--teal)}"
     "button:focus-visible,select:focus-visible{outline:2px solid var(--teal);outline-offset:2px}"
     ".footer-note{margin:30px 0 0;color:var(--muted);font-size:.78rem}"
-    "@media(max-width:1050px){.ranking-card{overflow:hidden}.ranking-card table{min-width:620px}}"
-    "@media(max-width:620px){.page{padding:16px 12px 36px}section{margin:26px 0}.ranking-card{padding:18px 14px}.ranking-card .metric{min-height:0;margin:7px 0 12px}.ranking-card table{min-width:0;table-layout:fixed}.ranking-card th:nth-child(1),.ranking-card td:nth-child(1){width:42px}.ranking-card th:nth-child(2),.ranking-card td:nth-child(2){width:48%}.ranking-card th:nth-child(n+4),.ranking-card td:nth-child(n+4){display:none}.ranking-card .model{max-width:none}.ranking-card th,.ranking-card td{padding:10px 7px}.ranking-card th:nth-child(3){font-size:.62rem}}"
+    "@media(max-width:620px){.page{padding:16px 12px 36px}section{margin:26px 0}.ranking-card{padding:18px 14px}"
+    ".ranking-card .metric{min-height:0;margin:7px 0 12px}.ranking-card th,.ranking-card td{padding:10px 8px}}"
 )
 _STYLE_HASH = base64.b64encode(hashlib.sha256(_STYLE.encode("utf-8")).digest()).decode("ascii")
 _SCRIPT = """(function(){
@@ -232,7 +235,7 @@ _TEMPLATE = """<!doctype html>
 {% else %}
 <p class="metric">{{ view.annotations.get('metric', view.annotations.get('heuristic', '')) }}</p>
 {% for category, category_models in decision_models_by_type(view, model_by_id, model_type_models).items() %}
-<table class="decision-table" data-model-table="{{ category }}"{% if not loop.first %} hidden{% endif %}><thead><tr><th>Rank</th><th>Model</th>
+<div class="table-scroll"><table class="decision-table" data-model-table="{{ category }}"{% if not loop.first %} hidden{% endif %}><thead><tr><th>Rank</th><th>Model</th>
 {% if category != 'llm' %}
 <th>AA Elo</th><th>API cost</th><th>Samples</th><th>Released</th><th>Open weights</th>
 {% elif view.view_id == 'performance-top5' %}
@@ -283,7 +286,7 @@ _TEMPLATE = """<!doctype html>
 {% if source_value %}<td><a class="source-link" href="{{ safe_url(source_value) }}" title="Open source" aria-label="Open source for {{ model.name }}"><span class="external-icon" aria-hidden="true">↗</span></a></td>{% else %}<td class="unknown">unknown</td>{% endif %}
 </tr>
 {% endfor %}
-</tbody></table>
+</tbody></table></div>
 {% endfor %}
 <p class="filter-empty">No models match the selected filters.</p>
 {% endif %}
