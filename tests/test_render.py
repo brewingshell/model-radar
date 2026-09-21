@@ -204,9 +204,9 @@ def test_decision_filters_render_model_types_and_open_weight_metadata():
         in html
     )
     assert 'data-model-table="text-to-image"' in html
-    assert 'data-model-table="image-to-image"' in html
-    assert 'data-model-table="text-to-video"' in html
     assert 'data-model-table="image-to-video"' in html
+    assert 'data-model-table="image-to-image"' not in html
+    assert 'data-model-table="text-to-video"' not in html
     assert 'id="decision-open-weight"' in html
     assert 'data-model-type="llm" data-open-weight="true"' in html
     assert 'data-model-type="text-to-image" data-open-weight="false"' in html
@@ -314,7 +314,7 @@ def test_decision_tables_are_wrapped_for_horizontal_scroll():
     assert ".ranking-card{overflow:hidden}" not in html
 
 
-def test_modality_sub_tabs_render_image_edit_and_image_to_video():
+def test_modality_tabs_split_per_modality():
     models = normalize(
         [
             RawRecord(
@@ -323,6 +323,7 @@ def test_modality_sub_tabs_render_image_edit_and_image_to_video():
                 capabilities=[category],
                 artificial_analysis_modality=category,
                 artificial_analysis_modality_elo=1200 - index,
+                intelligence_index=90 - index,
                 provenance=["artificial-analysis"],
             )
             for category in ("text-to-image", "image-to-image", "text-to-video", "image-to-video")
@@ -340,24 +341,44 @@ def test_modality_sub_tabs_render_image_edit_and_image_to_video():
 
     html = render_html(snapshot).decode("utf-8")
 
-    assert '<div class="modality-tabs" id="decision-modality-tabs"' in html
-    assert 'aria-label="Modality" hidden>' in html
-    assert (
-        'class="modality-tab" data-category="text-to-image" data-group="image" aria-pressed="false">Text to image</button>'
-        in html
+    assert "Performance t2i top 10" in html
+    assert "Performance i2i top 10" in html
+    assert "Performance t2v top 10" in html
+    assert "Performance i2v top 10" in html
+    assert 'data-model-table="text-to-image"' in html
+    assert 'data-model-table="image-to-image"' in html
+    assert 'data-model-table="text-to-video"' in html
+    assert 'data-model-table="image-to-video"' in html
+    assert html.count('data-model-types="image"') >= 4
+    assert html.count('data-model-types="video"') >= 4
+    assert "modality-tabs" not in html
+    assert "modality-tab" not in html
+    assert "tab-panel is-active" in html
+
+
+def test_llm_tabs_have_no_modality_suffix():
+    models = normalize(
+        [
+            RawRecord(
+                source_id=f"aa/model-{index}",
+                name=f"Model {index}",
+                intelligence_index=90 - index,
+                provenance=["artificial-analysis"],
+            )
+            for index in range(5)
+        ]
     )
-    assert (
-        'class="modality-tab" data-category="image-to-image" data-group="image" aria-pressed="false">Image edit</button>'
-        in html
+    snapshot = Snapshot(
+        snapshot_id="llm-tabs",
+        generated_at=datetime(2026, 9, 21, tzinfo=UTC),
+        status="complete",
+        source_status=[],
+        models=models,
+        views=build_views(models),
     )
-    assert (
-        'class="modality-tab" data-category="text-to-video" data-group="video" aria-pressed="false">Text to video</button>'
-        in html
-    )
-    assert (
-        'class="modality-tab" data-category="image-to-video" data-group="video" aria-pressed="false">Image to video</button>'
-        in html
-    )
-    assert "decision-modality-tabs" in html
-    assert "dataset.modality" in html
-    assert ".modality-tabs[hidden],.modality-tab[hidden]{display:none}" in html
+
+    html = render_html(snapshot).decode("utf-8")
+
+    assert "Performance top 10" in html
+    assert "Performance t2i top 10" not in html
+    assert 'data-model-types="llm"' in html

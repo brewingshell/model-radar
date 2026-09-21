@@ -82,7 +82,10 @@ Analysis input/output USD per 1M tokens, weighted as `(3 * input + output) / 4`,
 The image and video tabs use the modality-specific Artificial Analysis Elo rankings and display
 their API costs separately from LLM token pricing. The model-type filter offers three options: LLM,
 Image, and Video. Image covers the text-to-image and image-to-image leaderboards, and Video covers
-text-to-video and image-to-video, so each modality family is reachable under a single selection.
+text-to-video and image-to-video. Selecting Image or Video splits the decision views into one tab
+per modality, labeled with the modality abbreviation, for example `Performance t2i top 10` and
+`Performance i2i top 10` under Image, and `Performance t2v top 10` and `Performance i2v top 10`
+under Video. Only modalities that have data produce a tab.
 The meaningful-new Hugging Face view uses
 source `createdAt`/`lastModified` plus a transparent adoption heuristic; OpenRouter remains an
 optional secondary metadata source. A failed required AA source leaves the primary performance

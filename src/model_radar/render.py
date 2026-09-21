@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import base64
 import hashlib
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
 from jinja2 import BaseLoader, Environment, select_autoescape
 
 from model_radar.analysis import model_type
-from model_radar.models import ModelRecord, Snapshot
+from model_radar.models import ModelRecord, Snapshot, View
 
 _STYLE = (
     ":root{color-scheme:dark;--ink:#e6edf3;--muted:#9aa9b8;--line:#33404d;"
@@ -40,13 +41,6 @@ _STYLE = (
     ".filter-select:hover{border-color:var(--teal);background:var(--hover)}"
     ".filter-check{display:inline-flex;align-items:center;gap:7px;color:var(--navy);font-size:.82rem;font-weight:750;cursor:pointer}"
     ".filter-check input{width:16px;height:16px;accent-color:var(--teal)}"
-    ".modality-tabs{display:flex;flex-wrap:wrap;gap:6px;width:max-content;max-width:100%;margin-top:10px;padding:6px;"
-    "border:1px solid var(--line);border-radius:12px;background:var(--paper)}"
-    ".modality-tabs[hidden],.modality-tab[hidden]{display:none}"
-    ".modality-tab{padding:8px 14px;border:0;border-radius:9px;background:transparent;color:var(--muted);"
-    "font:inherit;font-size:.8rem;font-weight:800;cursor:pointer}"
-    ".modality-tab:hover{background:var(--hover);color:var(--ink)}"
-    ".modality-tab[aria-pressed='true']{background:var(--teal);color:var(--on-accent)}"
     ".filter-empty{display:none;padding:14px;border-radius:12px;background:var(--surface-muted);color:var(--muted);font-size:.85rem}"
     ".warnings{display:grid;gap:8px;margin:20px 0}.warning{display:flex;gap:10px;align-items:flex-start;"
     "padding:12px 14px;border:1px solid #f1d28b;border-radius:12px;background:var(--amber-bg);color:#704300;font-size:.88rem}"
@@ -56,9 +50,8 @@ _STYLE = (
     ".tab-labels{display:flex;gap:6px;padding:4px;border-bottom:1px solid var(--line);overflow-x:auto}"
     ".tab-label{flex:1 0 auto;padding:11px 14px;border-radius:10px;color:var(--muted);font-size:.82rem;font-weight:800;cursor:pointer;text-align:center}"
     ".tab-label:hover{background:var(--hover);color:var(--ink)}"
-    ".tab-label[for=primary-tab-0],.tab-label[for=primary-tab-1]{background:var(--amber-bg);color:var(--amber)}"
-    ".tabs:has(#primary-tab-0:checked) label[for=primary-tab-0],.tabs:has(#primary-tab-1:checked) label[for=primary-tab-1],.tabs:has(#primary-tab-2:checked) label[for=primary-tab-2],.tabs:has(#primary-tab-3:checked) label[for=primary-tab-3],.tabs:has(#primary-tab-4:checked) label[for=primary-tab-4],.tabs:has(#primary-tab-5:checked) label[for=primary-tab-5]{background:var(--teal);color:var(--on-accent)}"
-    ".tab-panel{display:none;border:0;box-shadow:none;padding:22px 10px 12px}.tabs:has(#primary-tab-0:checked) #primary-panel-0,.tabs:has(#primary-tab-1:checked) #primary-panel-1,.tabs:has(#primary-tab-2:checked) #primary-panel-2,.tabs:has(#primary-tab-3:checked) #primary-panel-3,.tabs:has(#primary-tab-4:checked) #primary-panel-4,.tabs:has(#primary-tab-5:checked) #primary-panel-5{display:block}"
+    ".tab-input:checked+.tab-label{background:var(--teal);color:var(--on-accent)}"
+    ".tab-panel{display:none;border:0;box-shadow:none;padding:22px 10px 12px}.tab-panel.is-active{display:block}"
     ".ranking-card{min-width:0;background:var(--paper);border:1px solid var(--line);border-radius:18px;"
     "padding:18px;box-shadow:var(--shadow)}.ranking-card .metric{min-height:42px;margin:8px 0 16px;color:var(--muted);font-size:.78rem}"
     ".ranking-card.unavailable{background:var(--surface-muted)}.unavailable-note{padding:14px;border-radius:12px;background:var(--rose-bg);color:var(--rose);font-size:.85rem}"
@@ -139,43 +132,25 @@ document.getElementById('theme-toggle')?.addEventListener('click',function(){
 function applyDecisionFilters(){
     var select=document.getElementById('decision-modality');
     var type=select?.value||'llm';
-    var option=select&&select.selectedOptions?select.selectedOptions[0]:null;
-    var allowedCategories=(option&&option.dataset.categories?option.dataset.categories:type).split(',');
     var openOnly=document.getElementById('decision-open-weight')?.checked||false;
-    var active=select?.dataset.modality||'';
-    if(allowedCategories.indexOf(active)<0)active=allowedCategories[0];
-    if(select)select.dataset.modality=active;
-    var modalityBar=document.getElementById('decision-modality-tabs');
-    if(modalityBar){
-        var anyModality=false;
-        modalityBar.querySelectorAll('.modality-tab').forEach(function(button){
-            var show=allowedCategories.indexOf(button.dataset.category)>=0;
-            button.hidden=!show;
-            button.setAttribute('aria-pressed',show&&button.dataset.category===active?'true':'false');
-            if(show)anyModality=true;
-        });
-        modalityBar.hidden=!anyModality;
-    }
     var tabInputs=Array.from(document.querySelectorAll('.tab-input'));
     tabInputs.forEach(function(input){
-        var allowed=(input.dataset.modelTypes||'').split(',').indexOf(type)>=0;
+        var allowed=(input.dataset.modelTypes||'')===type;
         input.hidden=!allowed;
         var label=document.querySelector('label[for="'+input.id+'"]');
         if(label)label.hidden=!allowed;
-        var panel=document.getElementById(input.id.replace('primary-tab-','primary-panel-'));
-        if(panel)panel.hidden=!allowed;
     });
     var checked=tabInputs.find(function(input){return input.checked&&!input.hidden;});
     if(!checked){
         var firstAllowed=tabInputs.find(function(input){return !input.hidden;});
         if(firstAllowed)firstAllowed.checked=true;
     }
-    document.querySelectorAll('.ranking-card').forEach(function(panel){
-        var selectedTables=[];
+    document.querySelectorAll('.tab-panel').forEach(function(panel){
+        var input=document.getElementById('primary-tab-'+panel.id.replace('primary-panel-',''));
+        var active=!!input&&input.checked&&!input.hidden;
+        panel.classList.toggle('is-active',active);
+        if(!active)return;
         panel.querySelectorAll('.decision-table').forEach(function(table){
-            var selected=table.dataset.modelTable===active;
-            table.hidden=!selected;
-            if(selected)selectedTables.push(table);
             var rows=Array.from(table.querySelectorAll('.decision-row'));
             var count=0;
             rows.forEach(function(row){
@@ -191,20 +166,17 @@ function applyDecisionFilters(){
         });
         var empty=panel.querySelector('.filter-empty');
         if(empty){
-            var hasRows=selectedTables.some(function(table){return table.querySelectorAll('.decision-row').length;});
-            var visibleRows=selectedTables.reduce(function(total,table){return total+table.querySelectorAll('.decision-row:not([hidden])').length;},0);
+            var table=panel.querySelector('.decision-table');
+            var hasRows=!!table&&table.querySelectorAll('.decision-row').length>0;
+            var visibleRows=table?table.querySelectorAll('.decision-row:not([hidden])').length:0;
             empty.style.display=hasRows&&!visibleRows?'block':'none';
         }
     });
 }
 document.getElementById('decision-modality')?.addEventListener('change',applyDecisionFilters);
 document.getElementById('decision-open-weight')?.addEventListener('change',applyDecisionFilters);
-document.querySelectorAll('.modality-tab').forEach(function(button){
-    button.addEventListener('click',function(){
-        var select=document.getElementById('decision-modality');
-        if(select)select.dataset.modality=button.dataset.category;
-        applyDecisionFilters();
-    });
+document.querySelectorAll('.tab-input').forEach(function(input){
+    input.addEventListener('change',applyDecisionFilters);
 });
 applyDecisionFilters();
 })();"""
@@ -252,55 +224,50 @@ _TEMPLATE = """<!doctype html>
 </select></label>
 <label class="filter-check"><input id="decision-open-weight" type="checkbox"> Open-weight only</label>
 </div>
-<div class="modality-tabs" id="decision-modality-tabs" role="group" aria-label="Modality" hidden>
-{% for category, group, label in modality_tabs %}<button type="button" class="modality-tab" data-category="{{ category }}" data-group="{{ group }}" aria-pressed="false">{{ label }}</button>{% endfor %}
-</div>
 <div class="tabs">
-{% for view in snapshot.views if view.view_id in primary_view_ids %}<input class="tab-input" type="radio" name="primary-view" id="primary-tab-{{ loop.index0 }}" data-model-types="{{ view_model_types(view.view_id, model_type_tabs)|join(',') }}"{% if loop.first %} checked{% endif %}>{% endfor %}
-<div class="tab-labels">{% for view in snapshot.views if view.view_id in primary_view_ids %}<label class="tab-label" for="primary-tab-{{ loop.index0 }}" data-model-types="{{ view_model_types(view.view_id, model_type_tabs)|join(',') }}">{{ view.title }}</label>{% endfor %}</div>
+<div class="tab-labels">{% for tab in primary_tabs %}<input class="tab-input" type="radio" name="primary-view" id="primary-tab-{{ loop.index0 }}" data-model-types="{{ tab.group }}"{% if loop.first %} checked{% endif %}><label class="tab-label" for="primary-tab-{{ loop.index0 }}" data-model-types="{{ tab.group }}">{{ tab.title }}</label>{% endfor %}</div>
 <div class="tab-panels">
-{% for view in snapshot.views if view.view_id in primary_view_ids %}
-<article id="primary-panel-{{ loop.index0 }}" data-model-types="{{ view_model_types(view.view_id, model_type_tabs)|join(',') }}" class="ranking-card tab-panel {{ 'unavailable' if view.degraded or not view.model_ids else '' }}"><h3>{{ view.title }}</h3>
-{% if view.degraded or not view.model_ids %}
-<p class="unavailable-note">{{ view.annotations.get('reason', 'unavailable') }}</p>
+{% for tab in primary_tabs %}
+<article id="primary-panel-{{ loop.index0 }}" data-model-types="{{ tab.group }}" class="ranking-card tab-panel{{ ' is-active' if loop.first else '' }}{{ ' unavailable' if tab.unavailable else '' }}"><h3>{{ tab.title }}</h3>
+{% if tab.unavailable %}
+<p class="unavailable-note">{{ tab.view.annotations.get('reason', 'unavailable') }}</p>
 {% else %}
-<p class="metric">{{ view.annotations.get('metric', view.annotations.get('heuristic', '')) }}</p>
-{% for category, category_models in decision_models_by_type(view, model_by_id, model_type_models).items() %}
-<div class="table-scroll"><table class="decision-table" data-model-table="{{ category }}"{% if not loop.first %} hidden{% endif %}><thead><tr><th>Rank</th><th>Model</th>
-{% if category != 'llm' %}
+<p class="metric">{{ tab.view.annotations.get('metric', tab.view.annotations.get('heuristic', '')) }}</p>
+<div class="table-scroll"><table class="decision-table" data-model-table="{{ tab.category }}"><thead><tr><th>Rank</th><th>Model</th>
+{% if tab.category != 'llm' %}
 <th>AA Elo</th><th>API cost</th><th>Samples</th><th>Released</th><th>Open weights</th>
-{% elif view.view_id == 'performance-top5' %}
+{% elif tab.view.view_id == 'performance-top5' %}
 <th>LiveBench</th><th>AA Intelligence Index</th><th>Cost per benchmark task (USD)</th><th>Median output tokens/s</th>
-{% elif view.view_id == 'performance-per-token-top5' %}
+{% elif tab.view.view_id == 'performance-per-token-top5' %}
 <th>LiveBench</th><th>AA Intelligence / weighted USD per 1M tokens</th><th>AA Intelligence Index</th><th>Input USD / 1M</th><th>Output USD / 1M</th>
-{% elif view.view_id == 'org-copilot-per-token-top10' %}
+{% elif tab.view.view_id == 'org-copilot-per-token-top10' %}
 <th>LiveBench</th><th>AA Intelligence / Copilot credits</th><th>AA Intelligence Index</th><th>Copilot credits In / Out</th><th>Thinking level</th>
-{% elif view.view_id == 'org-copilot-best-top10' %}
+{% elif tab.view.view_id == 'org-copilot-best-top10' %}
 <th>LiveBench</th><th>AA Intelligence Index</th><th>AA Intelligence / Copilot credits</th><th>Copilot credits In / Out</th><th>Thinking level</th>
-{% elif view.view_id == 'benchmark-synthesis-top10' %}
+{% elif tab.view.view_id == 'benchmark-synthesis-top10' %}
 <th>LiveBench</th><th>EvalPlus</th><th>DeepSWE</th><th>Merged index</th><th>Coverage</th><th>AA Intelligence</th>
 {% else %}
 <th>HF created/updated</th><th>Downloads</th><th>Likes</th><th>Parameters (B)</th>
 {% endif %}
-{% if category == 'llm' and view.view_id != 'meaningful-new-hf-top5' %}<th>Copilot</th>{% endif %}<th>Source</th></tr></thead><tbody>
-{% for model in category_models %}
-{% set source_value = model.artificial_analysis_model_url if view.view_id != 'meaningful-new-hf-top5' else (model.source_urls[0] if model.source_urls else None) %}
+{% if tab.category == 'llm' and tab.view.view_id != 'meaningful-new-hf-top5' %}<th>Copilot</th>{% endif %}<th>Source</th></tr></thead><tbody>
+{% for model in tab.models %}
+{% set source_value = model.artificial_analysis_model_url if tab.view.view_id != 'meaningful-new-hf-top5' else (model.source_urls[0] if model.source_urls else None) %}
 <tr class="decision-row" data-model-type="{{ model_type(model) }}" data-open-weight="{{ 'true' if model.open_weights is true else 'false' }}"><td><span class="rank">{{ loop.index }}</span></td><td><span class="model">{{ model.name }}{% if model.open_weights is true %}<span class="open-weight-mark" title="Open weights" aria-label="Open weights">OW</span>{% endif %}</span><span class="sub">{{ model.organization or 'source metadata' }}</span></td>
-{% if category != 'llm' %}
+{% if tab.category != 'llm' %}
 <td>{{ model.artificial_analysis_modality_elo if model.artificial_analysis_modality_elo is not none else 'unknown' }}</td><td>{% if model.artificial_analysis_modality_cost is not none %}${{ model.artificial_analysis_modality_cost }} / {{ model.artificial_analysis_modality_cost_unit }}{% else %}unknown{% endif %}</td><td>{{ model.artificial_analysis_modality_samples if model.artificial_analysis_modality_samples is not none else 'unknown' }}</td><td>{{ model.artificial_analysis_modality_release or 'unknown' }}</td><td>{{ 'yes' if model.open_weights is true else 'no' if model.open_weights is false else 'unknown' }}</td>
-{% elif view.view_id == 'performance-top5' %}
+{% elif tab.view.view_id == 'performance-top5' %}
 <td>{{ model.livebench_index if model.livebench_index is not none else 'unknown' }}</td>
 <td>{{ model.intelligence_index if model.intelligence_index is not none else 'unknown' }}</td><td>{{ model.cost_per_task_usd if model.cost_per_task_usd is not none else 'unknown' }}</td><td>{{ model.median_output_tokens_per_second if model.median_output_tokens_per_second is not none else 'unknown' }}</td>
-{% elif view.view_id == 'performance-per-token-top5' %}
+{% elif tab.view.view_id == 'performance-per-token-top5' %}
 <td>{{ model.livebench_index if model.livebench_index is not none else 'unknown' }}</td>
 <td>{{ model.scores.get('aa_token_dollar_efficiency').value if model.scores.get('aa_token_dollar_efficiency') and model.scores.get('aa_token_dollar_efficiency').value is not none else 'unknown' }}</td><td>{{ model.intelligence_index if model.intelligence_index is not none else 'unknown' }}</td><td>{{ model.artificial_analysis_input_price_per_million if model.artificial_analysis_input_price_per_million is not none else 'unknown' }}</td><td>{{ model.artificial_analysis_output_price_per_million if model.artificial_analysis_output_price_per_million is not none else 'unknown' }}</td>
-{% elif view.view_id == 'org-copilot-per-token-top10' %}
+{% elif tab.view.view_id == 'org-copilot-per-token-top10' %}
 <td>{{ model.livebench_index if model.livebench_index is not none else 'unknown' }}</td>
 <td>{{ model.scores.get('copilot_token_efficiency').value if model.scores.get('copilot_token_efficiency') and model.scores.get('copilot_token_efficiency').value is not none else 'unknown' }}</td><td>{{ model.intelligence_index if model.intelligence_index is not none else 'unknown' }}</td><td>{{ model.copilot_input_credits_per_million }} / {{ model.copilot_output_credits_per_million }}</td><td>{{ model.effort_level or 'default' }}</td>
-{% elif view.view_id == 'org-copilot-best-top10' %}
+{% elif tab.view.view_id == 'org-copilot-best-top10' %}
 <td>{{ model.livebench_index if model.livebench_index is not none else 'unknown' }}</td>
 <td>{{ model.intelligence_index if model.intelligence_index is not none else 'unknown' }}</td><td>{{ model.scores.get('copilot_token_efficiency').value if model.scores.get('copilot_token_efficiency') and model.scores.get('copilot_token_efficiency').value is not none else 'unknown' }}</td><td>{{ model.copilot_input_credits_per_million }} / {{ model.copilot_output_credits_per_million }}</td><td>{{ model.effort_level or 'default' }}</td>
-{% elif view.view_id == 'benchmark-synthesis-top10' %}
+{% elif tab.view.view_id == 'benchmark-synthesis-top10' %}
 <td>{{ model.livebench_index if model.livebench_index is not none else 'unknown' }}</td>
 <td>{{ model.evalplus_index if model.evalplus_index is not none else 'unknown' }}</td>
 <td>{{ model.deepswe_index if model.deepswe_index is not none else 'unknown' }}</td>
@@ -313,12 +280,11 @@ _TEMPLATE = """<!doctype html>
 <td>{{ model.likes if model.likes is not none else 'unknown' }}</td>
 <td>{{ model.parameters_b if model.parameters_b is not none else 'unknown' }}</td>
 {% endif %}
-{% if category == 'llm' and view.view_id != 'meaningful-new-hf-top5' %}<td>{{ 'yes' if model.copilot_ready is true else 'no' if model.copilot_ready is false else 'unknown' }}</td>{% endif %}
+{% if tab.category == 'llm' and tab.view.view_id != 'meaningful-new-hf-top5' %}<td>{{ 'yes' if model.copilot_ready is true else 'no' if model.copilot_ready is false else 'unknown' }}</td>{% endif %}
 {% if source_value %}<td><a class="source-link" href="{{ safe_url(source_value) }}" title="Open source" aria-label="Open source for {{ model.name }}"><span class="external-icon" aria-hidden="true">↗</span></a></td>{% else %}<td class="unknown">unknown</td>{% endif %}
 </tr>
 {% endfor %}
 </tbody></table></div>
-{% endfor %}
 <p class="filter-empty">No models match the selected filters.</p>
 {% endif %}
 </article>
@@ -358,12 +324,12 @@ _MODEL_TYPE_GROUP_LABELS = {
     "video": "Video",
 }
 
-_MODALITY_TABS = (
-    ("text-to-image", "image", "Text to image"),
-    ("image-to-image", "image", "Image edit"),
-    ("text-to-video", "video", "Text to video"),
-    ("image-to-video", "video", "Image to video"),
-)
+_MODALITY_ABBREVIATIONS = {
+    "text-to-image": "t2i",
+    "image-to-image": "i2i",
+    "text-to-video": "t2v",
+    "image-to-video": "i2v",
+}
 
 _DEFAULT_MODEL_TYPE_TABS = {
     "llm": list(_PRIMARY_VIEW_IDS),
@@ -453,6 +419,73 @@ def view_model_types(view_id: str, model_type_tabs: dict[str, list[str]]) -> lis
     return allowed or list(groups)
 
 
+def modality_view_title(title: str, category: str) -> str:
+    """Append a modality abbreviation to a tab title, e.g. "Performance t2i top 10"."""
+    abbreviation = _MODALITY_ABBREVIATIONS.get(category)
+    if not abbreviation:
+        return title
+    if "top 10" in title:
+        return title.replace("top 10", f"{abbreviation} top 10")
+    return f"{title} {abbreviation}"
+
+
+@dataclass(frozen=True)
+class _PrimaryTab:
+    view: View
+    category: str
+    group: str
+    title: str
+    models: list[ModelRecord]
+    unavailable: bool
+
+
+def primary_tabs(snapshot: Snapshot, model_type_tabs: dict[str, list[str]]) -> list[_PrimaryTab]:
+    """One tab per (view, modality), grouped by model type.
+
+    LLM views yield a single tab; image and video views yield one tab per
+    modality (text to image / image edit, text to video / image to video).
+    """
+    model_by_id = {model.model_id: model for model in snapshot.models}
+    catalog = _model_type_catalog(snapshot.models)
+    tabs: list[_PrimaryTab] = []
+    for view in snapshot.views:
+        if view.view_id not in _PRIMARY_VIEW_IDS:
+            continue
+        groups = view_model_types(view.view_id, model_type_tabs)
+        by_category = decision_models_by_type(view, model_by_id, catalog)
+        emitted = False
+        for group in groups:
+            for category in model_type_group_categories(group):
+                models = by_category.get(category, [])
+                if not models:
+                    continue
+                tabs.append(
+                    _PrimaryTab(
+                        view=view,
+                        category=category,
+                        group=group,
+                        title=modality_view_title(view.title, category),
+                        models=models,
+                        unavailable=False,
+                    )
+                )
+                emitted = True
+        if not emitted:
+            group = groups[0] if groups else "llm"
+            category = model_type_group_categories(group)[0]
+            tabs.append(
+                _PrimaryTab(
+                    view=view,
+                    category=category,
+                    group=group,
+                    title=modality_view_title(view.title, category),
+                    models=[],
+                    unavailable=True,
+                )
+            )
+    return tabs
+
+
 def decision_models(
     view: object,
     model_by_id: dict[str, ModelRecord],
@@ -485,6 +518,7 @@ def decision_models_by_type(
 def render_html(snapshot: Snapshot) -> bytes:
     environment = Environment(loader=BaseLoader(), autoescape=select_autoescape(["html", "xml"]))
     environment.globals["safe_url"] = _safe_url
+    model_type_tabs = snapshot.summary.get("model_type_tabs", _DEFAULT_MODEL_TYPE_TABS)
     return (
         environment.from_string(_TEMPLATE)
         .render(
@@ -493,19 +527,13 @@ def render_html(snapshot: Snapshot) -> bytes:
             format_date=format_date,
             style=_STYLE,
             script=_SCRIPT,
-            primary_view_ids=_PRIMARY_VIEW_IDS,
-            model_by_id={model.model_id: model for model in snapshot.models},
+            primary_tabs=primary_tabs(snapshot, model_type_tabs),
             model_type=model_type,
-            model_type_label=model_type_label,
-            model_type_models=_model_type_catalog(snapshot.models),
-            decision_models=decision_models,
-            decision_models_by_type=decision_models_by_type,
-            model_type_tabs=snapshot.summary.get("model_type_tabs", _DEFAULT_MODEL_TYPE_TABS),
+            model_type_tabs=model_type_tabs,
             view_model_types=view_model_types,
             model_type_groups=model_type_groups,
             model_type_group_label=model_type_group_label,
             model_type_group_categories=model_type_group_categories,
-            modality_tabs=_MODALITY_TABS,
         )
         .encode("utf-8")
     )
