@@ -3,7 +3,7 @@ from __future__ import annotations
 from textual.app import App, ComposeResult
 from textual.widgets import Static
 
-from distill.models import Snapshot
+from model_radar.models import Snapshot
 
 
 def top_rows(snapshot: Snapshot, view_id: str = "performance-top5") -> list[dict[str, object]]:

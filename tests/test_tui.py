@@ -1,8 +1,8 @@
 from datetime import UTC, datetime
 
-from distill.analysis import build_views, normalize
-from distill.models import RawRecord, Snapshot
-from distill.tui import plain_top, top_rows
+from model_radar.analysis import build_views, normalize
+from model_radar.models import RawRecord, Snapshot
+from model_radar.tui import plain_top, top_rows
 
 
 def test_tui_reads_snapshot_data_without_recomputing_scores():

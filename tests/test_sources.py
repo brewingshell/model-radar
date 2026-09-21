@@ -3,7 +3,7 @@ import asyncio
 import httpx
 import pytest
 
-from distill.connectors import (
+from model_radar.connectors import (
     ArtificialAnalysisConnector,
     ArtificialAnalysisModalityConnector,
     BoundedHttpClient,
@@ -13,8 +13,8 @@ from distill.connectors import (
     LiveBenchConnector,
     OpenRouterConnector,
 )
-from distill.models import SourceConfig
-from distill.source import (
+from model_radar.models import SourceConfig
+from model_radar.source import (
     ConnectorError,
     Page,
     PaginationError,

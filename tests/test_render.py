@@ -1,8 +1,8 @@
 from datetime import UTC, datetime
 
-from distill.analysis import attach_benchmarks, build_views, normalize
-from distill.models import RawRecord, Snapshot
-from distill.render import model_type, render_html
+from model_radar.analysis import attach_benchmarks, build_views, normalize
+from model_radar.models import RawRecord, Snapshot
+from model_radar.render import model_type, render_html
 
 
 def test_html_escapes_untrusted_model_fields():

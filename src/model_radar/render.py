@@ -6,8 +6,8 @@ from datetime import UTC, date, datetime
 
 from jinja2 import BaseLoader, Environment, select_autoescape
 
-from distill.analysis import model_type
-from distill.models import ModelRecord, Snapshot
+from model_radar.analysis import model_type
+from model_radar.models import ModelRecord, Snapshot
 
 _STYLE = (
     ":root{color-scheme:dark;--ink:#e6edf3;--muted:#9aa9b8;--line:#33404d;"
@@ -200,7 +200,7 @@ _TEMPLATE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Analysis Distill</title>
+<title>Model Radar</title>
 <meta http-equiv="Content-Security-Policy" content="{{ csp }}">
 <style>{{ style|safe }}</style>
 </head>

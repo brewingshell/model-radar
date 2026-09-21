@@ -16,8 +16,8 @@ from bs4 import BeautifulSoup
 from tenacity import AsyncRetrying, RetryCallState, retry_if_exception_type, stop_after_attempt
 from tenacity.wait import wait_base
 
-from distill.models import RawRecord, SourceConfig
-from distill.source import ConnectorError, Page
+from model_radar.models import RawRecord, SourceConfig
+from model_radar.source import ConnectorError, Page
 
 
 class FixtureConnector:
@@ -77,7 +77,7 @@ class BoundedHttpClient:
             timeout=timeout,
             follow_redirects=False,
             transport=self.transport,
-            headers={"User-Agent": "analysis-distill/0.1"},
+            headers={"User-Agent": "model-radar/0.1"},
         )
         return self
 

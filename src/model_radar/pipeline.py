@@ -6,8 +6,8 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
-from distill.analysis import apply_copilot_catalog, attach_benchmarks, build_views, normalize
-from distill.connectors import (
+from model_radar.analysis import apply_copilot_catalog, attach_benchmarks, build_views, normalize
+from model_radar.connectors import (
     ArtificialAnalysisConnector,
     ArtificialAnalysisModalityConnector,
     BoundedHttpClient,
@@ -18,9 +18,16 @@ from distill.connectors import (
     LiveBenchConnector,
     OpenRouterConnector,
 )
-from distill.models import AppConfig, FetchConfig, RawRecord, Snapshot, SourceConfig, SourceStatus
-from distill.publisher import Publisher
-from distill.source import Connector, fetch_sources
+from model_radar.models import (
+    AppConfig,
+    FetchConfig,
+    RawRecord,
+    Snapshot,
+    SourceConfig,
+    SourceStatus,
+)
+from model_radar.publisher import Publisher
+from model_radar.source import Connector, fetch_sources
 
 
 def make_connector(config: SourceConfig, client: BoundedHttpClient | None = None) -> Connector:

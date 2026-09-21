@@ -1,4 +1,4 @@
-from distill.cli import main
+from model_radar.cli import main
 
 if __name__ == "__main__":
     main()

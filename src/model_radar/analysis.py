@@ -8,7 +8,14 @@ from collections.abc import Callable, Iterable
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
-from distill.models import CopilotConfig, CopilotModelConfig, ModelRecord, RawRecord, Score, View
+from model_radar.models import (
+    CopilotConfig,
+    CopilotModelConfig,
+    ModelRecord,
+    RawRecord,
+    Score,
+    View,
+)
 
 
 def normalize(records: Iterable[RawRecord]) -> list[ModelRecord]:

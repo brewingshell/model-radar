@@ -4,7 +4,7 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
-from distill.models import Snapshot
+from model_radar.models import Snapshot
 
 
 def canonical_json(value: Any) -> bytes:

@@ -2,9 +2,9 @@ from datetime import UTC, datetime
 
 import pytest
 
-from distill.analysis import build_views, normalize
-from distill.models import RawRecord, Snapshot
-from distill.publisher import PublicationError, Publisher
+from model_radar.analysis import build_views, normalize
+from model_radar.models import RawRecord, Snapshot
+from model_radar.publisher import PublicationError, Publisher
 
 
 def make_snapshot(name: str = "Stable", day: int = 18) -> Snapshot:
@@ -29,7 +29,7 @@ def test_failed_publication_preserves_previous_release(tmp_path, monkeypatch):
     def fail_render(_snapshot):
         raise RuntimeError("render exploded")
 
-    monkeypatch.setattr("distill.publisher.render_html", fail_render)
+    monkeypatch.setattr("model_radar.publisher.render_html", fail_render)
     with pytest.raises(PublicationError, match="render exploded"):
         publisher.publish(make_snapshot("Replacement"))
 
@@ -79,13 +79,13 @@ def test_publication_writes_permanent_root_and_history(tmp_path):
     publisher.publish(make_snapshot("First", day=18))
     publisher.publish(make_snapshot("Second", day=19))
 
-    assert (tmp_path / "out" / "distill.html").is_file()
+    assert (tmp_path / "out" / "model-radar.html").is_file()
     assert (tmp_path / "out" / "snapshot.json").is_file()
     assert (tmp_path / "out" / "manifest.json").is_file()
     assert (tmp_path / "out" / "current").is_dir()
     assert not (tmp_path / "out" / "current").is_symlink()
     assert len(list((tmp_path / "out" / "history").glob("*.json"))) == 2
-    html = (tmp_path / "out" / "distill.html").read_text(encoding="utf-8")
+    html = (tmp_path / "out" / "model-radar.html").read_text(encoding="utf-8")
     assert "What's new" in html
 
 

@@ -39,11 +39,11 @@ jobs:
       - name: Run offline fixture smoke test
         run: |
           output_dir="$(mktemp -d)"
-          python -m distill run \
+          python -m model_radar run \
             --config config/fixture.yaml \
             --output "$output_dir" \
             --source fixture \
             --generated-at 2026-09-21T00:00:00+00:00
-          python -m distill validate "$output_dir/snapshot.json"
-          test -s "$output_dir/distill.html"
+          python -m model_radar validate "$output_dir/snapshot.json"
+          test -s "$output_dir/model-radar.html"
           test -s "$output_dir/manifest.json"

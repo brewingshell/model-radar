@@ -34,18 +34,36 @@ jobs:
       - name: Install package
         run: python -m pip install --upgrade pip && python -m pip install .
 
+      - name: Restore snapshot history
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            model-radar/history
+            model-radar/snapshot.json
+          key: model-radar-state-${{ github.run_id }}
+          restore-keys: |
+            model-radar-state-
+
       - name: Generate live snapshot
-        run: python -m distill run --config config/app.yaml --output ./distil
+        run: python -m model_radar run --config config/app.yaml --output ./model-radar
 
       - name: Validate snapshot
-        run: python -m distill validate ./distil/snapshot.json
+        run: python -m model_radar validate ./model-radar/snapshot.json
 
       - name: Prepare Pages entry point
         run: |
-          cp distil/distill.html distil/index.html
-          test -s distil/index.html
-          test -s distil/snapshot.json
-          test -s distil/manifest.json
+          cp model-radar/model-radar.html model-radar/index.html
+          test -s model-radar/index.html
+          test -s model-radar/snapshot.json
+          test -s model-radar/manifest.json
+
+      - name: Save snapshot history
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            model-radar/history
+            model-radar/snapshot.json
+          key: model-radar-state-${{ github.run_id }}
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
@@ -53,7 +71,7 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: distil
+          path: model-radar
 
   deploy:
     needs: build

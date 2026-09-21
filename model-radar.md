@@ -1,4 +1,4 @@
-# analysis-distill: Product Plan
+# model-radar: Product Plan
 
 > An on-demand tool that fetches the current AI model landscape, resolves and ranks it, then
 > publishes one point-in-time HTML report and one machine-readable snapshot for a terminal viewer.
@@ -18,12 +18,12 @@ announcements, and feeds. Engineers must reconcile several problems before makin
 - Benchmark values are difficult to compare across modalities and cohorts.
 - The landscape changes quickly enough that a report must state exactly when it was generated.
 
-The product distills those current sources into a portable answer to practical model-selection
+The product condenses those current sources into a portable answer to practical model-selection
 questions. It is not a continuously maintained catalog.
 
 ## 2. Product Contract
 
-One `distill run` invocation:
+One `model-radar run` invocation:
 
 1. Fetches every page from all enabled current-state sources.
 2. Validates and normalizes the fetched records.
@@ -249,7 +249,7 @@ One successful release contains:
 | Artifact | Purpose |
 |---|---|
 | `snapshot.json` | Complete versioned machine-readable current-state result |
-| `distill.html` | Self-contained report rendered from the same snapshot object |
+| `model-radar.html` | Self-contained report rendered from the same snapshot object |
 | `manifest.json` | Schema version, filenames, sizes, and SHA-256 hashes |
 
 The snapshot includes generation time, generator/configuration/algorithm versions, source outcomes,
@@ -264,7 +264,7 @@ The HTML report must:
 - Show generation time, source status, degraded views, score coverage, and provenance.
 - Escape hostile source text and enforce a strict CSP.
 
-`distill top` reads `out/snapshot.json` or a path supplied with `--snapshot`. It performs no
+`model-radar top` reads `out/snapshot.json` or a path supplied with `--snapshot`. It performs no
 network access and does not recompute scores. It supports filtering, sorting, comparison,
 provenance, responsive columns, ASCII, no-color, and one-frame plain output.
 
@@ -344,7 +344,7 @@ Optional live connector canaries detect upstream schema drift but do not create 
 | 0: Contract | Package, configuration, source outcomes, snapshot schema, manifest | Hand-built snapshot validates and opens in minimal HTML/TUI |
 | 1: Fetch | Bounded HTTP client, Hugging Face, OpenRouter, complete pagination | Recorded and live smoke sources fetch completely |
 | 2: Analyze | Normalization, identity, variants, enrichment, scores, views | Deterministic ranked snapshot passes identity and score gates |
-| 3: HTML MVP | Audit, snapshot codec, Jinja2 report, atomic publication | `distill run` produces a useful offline release |
+| 3: HTML MVP | Audit, snapshot codec, Jinja2 report, atomic publication | `model-radar run` produces a useful offline release |
 | 4: TUI | Snapshot loader, filters, comparison, provenance, responsive layouts | HTML and TUI values and ordering match |
 | 5: Breadth | Approved benchmarks, additional modalities, optional research | Each addition meets the same source and provenance contracts |
 
@@ -361,7 +361,7 @@ Optional live connector canaries detect upstream schema drift but do not create 
 
 ## 19. v1 Definition of Done
 
-- `distill run` fetches every page from all enabled current-state sources and exits.
+- `model-radar run` fetches every page from all enabled current-state sources and exits.
 - No database, cache, migration, checkpoint, or built-in scheduler is required; history is limited
   to one JSON result per day for the rolling 14-day report window.
 - Required-source incompleteness prevents publication; optional failure is visible and bounded.

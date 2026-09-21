@@ -1,5 +1,5 @@
 schema_version: "1"
-output: distil
+output: model-radar
 fetch:
   concurrency: 2
   max_pages: 2

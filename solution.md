@@ -1,11 +1,11 @@
-# Analysis Distill: Snapshot Implementation
+# Model Radar: Snapshot Implementation
 
 **Status:** implementation-ready  
 **Purpose:** generate an on-demand snapshot of the current AI model landscape  
 **Runtime:** Python 3.13  
-**Primary command:** `distill run`
+**Primary command:** `model-radar run`
 
-This document defines the implementation for the product described in `distill.md`. The product
+This document defines the implementation for the product described in `model-radar.md`. The product
 is a point-in-time report generator, not a continuously maintained model catalog. Each invocation
 fetches the current configured sources, analyzes the complete result, writes an HTML report and a
 TUI-readable snapshot, and exits.
@@ -26,7 +26,7 @@ One invocation performs the following work:
 5. Enrich and score the resolved models.
 6. Audit source coverage and result integrity.
 7. Build all report views from one immutable snapshot object.
-8. Render `distill.html` from that object.
+8. Render `model-radar.html` from that object.
 9. Serialize `snapshot.json` for the TUI and other tools.
 10. Atomically publish both files with a manifest, then exit.
 
@@ -41,13 +41,13 @@ time unless a source directly provides a current-window metric.
 - Artificial Analysis text-to-image, image-to-image, text-to-video, and image-to-video leaderboard
   records, ranked by modality Elo and carrying sample counts, release months, open-weight markers,
   and API cost units.
-- An organization Copilot distill using an external model catalog, generic family/effort extraction,
+- An organization Copilot ranking using an external model catalog, generic family/effort extraction,
   and top-ten model+thinking combinations ranked by intelligence per Copilot credit.
 - LiveBench enrichment inside the existing decision tables, matched to model+thinking variants
   without replacing Artificial Analysis. EvalPlus and DeepSWE are deferred and not active sources.
 - Meaningful new Hugging Face models using source dates and an explicit adoption/noise heuristic.
 - Primary views are top-ten Artificial Analysis performance, top-ten weighted token-price efficiency,
-  top-ten meaningful-new Hugging Face releases, and a top-ten organization Copilot distill. Metadata
+  top-ten meaningful-new Hugging Face releases, and a top-ten organization Copilot view. Metadata
   views remain secondary. Artificial Analysis task cost is shown separately and is not token pricing.
 - A self-contained HTML report.
 - A Textual TUI that reads the generated snapshot without network access.
@@ -74,7 +74,7 @@ flowchart LR
     Frames --> Resolve[Identity and variants]
     Resolve --> Analyze[Enrich, score, audit]
     Analyze --> Snapshot[Immutable Snapshot]
-    Snapshot --> HTML[distill.html]
+    Snapshot --> HTML[model-radar.html]
     Snapshot --> JSON[snapshot.json]
     JSON --> TUI[Textual TUI]
     HTML --> Publish[Atomic release]
@@ -117,7 +117,7 @@ the snapshot format.
 ## 4. Repository Layout
 
 ```text
-analysis-distill/
+model-radar/
 ├── pyproject.toml
 ├── uv.lock
 ├── config/
@@ -134,7 +134,7 @@ analysis-distill/
 │   └── organisations.yaml
 ├── schemas/
 │   └── snapshot-v1.schema.json
-├── src/distill/
+├── src/model_radar/
 │   ├── __init__.py
 │   ├── __main__.py
 │   ├── cli.py
@@ -178,7 +178,7 @@ analysis-distill/
 │   └── golden/
 ├── out/
   ├── snapshot.json
-  ├── distill.html
+  ├── model-radar.html
   ├── manifest.json
   ├── current/
   └── history/YYYY-MM-DD.json
@@ -388,7 +388,7 @@ Publish one release containing:
 | File | Purpose |
 |---|---|
 | `snapshot.json` | Complete machine-readable point-in-time result |
-| `distill.html` | Self-contained report built from the same snapshot |
+| `model-radar.html` | Self-contained report built from the same snapshot |
 | `manifest.json` | Schema version, filenames, byte sizes, and SHA-256 hashes |
 
 `snapshot.json` contains:
@@ -433,7 +433,7 @@ those results rather than rerunning ranking logic.
 
 ### 11.2 TUI
 
-`distill top` opens `out/snapshot.json`. `distill top --snapshot PATH` opens another compatible
+`model-radar top` opens `out/snapshot.json`. `model-radar top --snapshot PATH` opens another compatible
 snapshot.
 
 The TUI performs no network access, analysis, or score computation. It supports filtering, stable
@@ -449,12 +449,12 @@ sparklines, or persisted score-weight editing.
 
 1. Create a same-filesystem staging directory.
 2. Serialize `snapshot.json` once from the immutable `Snapshot` object, including What's New.
-3. Render the permanent `distill.html` from that object.
+3. Render the permanent `model-radar.html` from that object.
 4. Write `manifest.json` last with sizes and SHA-256 hashes.
 5. Reopen and validate the JSON against its Pydantic model and JSON Schema.
 6. Verify manifest hashes and run HTML safety/size checks.
 7. Flush the staging directory with `fsync`.
-8. Atomically replace root `snapshot.json`, `distill.html`, and `manifest.json`.
+8. Atomically replace root `snapshot.json`, `model-radar.html`, and `manifest.json`.
 9. Store the snapshot in `out/history` and delete history older than 14 days.
 10. Refresh the regular `out/current` compatibility directory; it is not a symlink.
 
@@ -465,16 +465,16 @@ release during analysis; it is used only for the generated change summary.
 
 | Command | Purpose |
 |---|---|
-| `distill run` | Fetch, analyze, and publish one current snapshot |
-| `distill run --no-publish` | Build and validate into a temporary output for testing |
-| `distill render --snapshot PATH` | Re-render HTML from an existing compatible snapshot |
-| `distill top` | Open the current snapshot in the TUI |
-| `distill top --snapshot PATH` | Open a selected snapshot |
-| `distill inspect MODEL_ID` | Print one model and provenance from a snapshot |
-| `distill validate PATH` | Validate snapshot or release integrity |
-| `distill sources` | List enabled sources and required/optional status |
+| `model-radar run` | Fetch, analyze, and publish one current snapshot |
+| `model-radar run --no-publish` | Build and validate into a temporary output for testing |
+| `model-radar render --snapshot PATH` | Re-render HTML from an existing compatible snapshot |
+| `model-radar top` | Open the current snapshot in the TUI |
+| `model-radar top --snapshot PATH` | Open a selected snapshot |
+| `model-radar inspect MODEL_ID` | Print one model and provenance from a snapshot |
+| `model-radar validate PATH` | Validate snapshot or release integrity |
+| `model-radar sources` | List enabled sources and required/optional status |
 
-`distill run` supports `--config`, `--output`, `--generated-at`, `--source`, `--no-publish`, and
+`model-radar run` supports `--config`, `--output`, `--generated-at`, `--source`, `--no-publish`, and
 `--log-format`. `--generated-at` exists for deterministic tests and controlled reproduction, not
 incremental replay.
 
@@ -621,7 +621,7 @@ produce deterministic, explainable scores and views.
 
 Implement views, audit, Jinja2 report, manifest verification, and atomic release replacement.
 
-**Done when:** `distill run` publishes a complete offline report; injected failures preserve
+**Done when:** `model-radar run` publishes a complete offline report; injected failures preserve
 `out/current`; source status and degraded views are visible; artifacts satisfy size limits.
 
 ### Phase 5: TUI and Hardening
@@ -653,15 +653,15 @@ another storage/query technology.
 
 The implementation is complete when:
 
-- `distill run` fetches every page from all enabled sources and exits after publication.
+- `model-radar run` fetches every page from all enabled sources and exits after publication.
 - There is no database, migration, cache, checkpoint, or historical dependency.
 - Required-source incompleteness prevents publication; permitted optional failure is explicit.
 - One immutable snapshot drives both HTML and TUI values.
 - Identity and scoring are deterministic, versioned, bounded, and explainable.
 - `snapshot.json` validates against the published versioned schema.
-- `distill.html` is self-contained, offline, accessible, and safe for hostile source strings.
+- `model-radar.html` is self-contained, offline, accessible, and safe for hostile source strings.
 - Publication is atomic and failure leaves the prior completed release untouched.
 - The TUI reads only the snapshot and performs no network or analysis work.
 - Fixed fixtures produce byte-identical output with a pinned generation time.
 - Time, memory, security, browser, and terminal acceptance gates pass.
-- Optional scheduling invokes plain `distill run` and adds no product state or behavior.
+- Optional scheduling invokes plain `model-radar run` and adds no product state or behavior.

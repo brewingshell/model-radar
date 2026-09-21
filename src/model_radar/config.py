@@ -10,7 +10,7 @@ from pydantic import ValidationError
 from ruamel.yaml import YAML
 from ruamel.yaml.constructor import DuplicateKeyError
 
-from distill.models import AppConfig
+from model_radar.models import AppConfig
 
 
 class ConfigError(ValueError):
@@ -58,10 +58,10 @@ def load_config(path: str | Path, environ: dict[str, str] | None = None) -> AppC
 
 def _apply_environment(data: dict[str, Any], env: Mapping[str, str]) -> dict[str, Any]:
     result = dict(data)
-    if "DISTILL_OUTPUT" in env:
-        result["output"] = env["DISTILL_OUTPUT"]
-    if "DISTILL_MAX_PAGES" in env:
-        result.setdefault("fetch", {})["max_pages"] = int(env["DISTILL_MAX_PAGES"])
-    if "DISTILL_MAX_RECORDS" in env:
-        result.setdefault("fetch", {})["max_records"] = int(env["DISTILL_MAX_RECORDS"])
+    if "MODEL_RADAR_OUTPUT" in env:
+        result["output"] = env["MODEL_RADAR_OUTPUT"]
+    if "MODEL_RADAR_MAX_PAGES" in env:
+        result.setdefault("fetch", {})["max_pages"] = int(env["MODEL_RADAR_MAX_PAGES"])
+    if "MODEL_RADAR_MAX_RECORDS" in env:
+        result.setdefault("fetch", {})["max_records"] = int(env["MODEL_RADAR_MAX_RECORDS"])
     return result

@@ -9,12 +9,12 @@ import click
 import typer
 from rich.console import Console
 
-from distill.codec import parse_snapshot
-from distill.config import ConfigError, load_config
-from distill.pipeline import load_published_snapshot, run_pipeline
-from distill.publisher import PublicationError, PublicationLockError, Publisher
-from distill.source import RequiredSourceError
-from distill.tui import SnapshotApp, plain_top
+from model_radar.codec import parse_snapshot
+from model_radar.config import ConfigError, load_config
+from model_radar.pipeline import load_published_snapshot, run_pipeline
+from model_radar.publisher import PublicationError, PublicationLockError, Publisher
+from model_radar.source import RequiredSourceError
+from model_radar.tui import SnapshotApp, plain_top
 
 app = typer.Typer(add_completion=False)
 console = Console()
@@ -96,7 +96,7 @@ def render(
 ) -> None:
     try:
         Publisher(output).publish(parse_snapshot(snapshot.read_bytes()))
-        console.print(f"published to {output / 'distill.html'}")
+        console.print(f"published to {output / 'model-radar.html'}")
     except (OSError, ValueError, PublicationError, PublicationLockError) as exc:
         console.print(str(exc), style="red")
         raise typer.Exit(code=4) from exc

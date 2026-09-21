@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
-from distill.analysis import apply_copilot_catalog, attach_benchmarks, build_views, normalize
-from distill.models import CopilotConfig, CopilotModelConfig, RawRecord
+from model_radar.analysis import apply_copilot_catalog, attach_benchmarks, build_views, normalize
+from model_radar.models import CopilotConfig, CopilotModelConfig, RawRecord
 
 
 def test_live_metadata_normalizes_and_builds_honest_views():

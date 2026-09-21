@@ -9,9 +9,9 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from distill.codec import canonical_json, parse_snapshot, snapshot_json
-from distill.models import Snapshot
-from distill.render import render_html
+from model_radar.codec import canonical_json, parse_snapshot, snapshot_json
+from model_radar.models import Snapshot
+from model_radar.render import render_html
 
 
 class PublicationLockError(RuntimeError):
@@ -49,7 +49,7 @@ class Publisher:
                     raise PublicationError("artifact validation failed")
                 if len(html_bytes) > self.max_html_bytes:
                     raise PublicationError("HTML exceeds the configured safety limit")
-                files = {"snapshot.json": json_bytes, "distill.html": html_bytes}
+                files = {"snapshot.json": json_bytes, "model-radar.html": html_bytes}
                 manifest_entries: dict[str, dict[str, object]] = {}
                 for name, content in files.items():
                     path = stage / name
@@ -154,7 +154,7 @@ class Publisher:
         if self.current.is_symlink():
             self.current.unlink()
         self.current.mkdir(parents=True, exist_ok=True)
-        for name in ("snapshot.json", "distill.html", "manifest.json"):
+        for name in ("snapshot.json", "model-radar.html", "manifest.json"):
             shutil.copy2(self.output / name, self.current / name)
 
     def _validate_artifacts(self, stage: Path, snapshot: Snapshot) -> None:
@@ -177,7 +177,7 @@ class Publisher:
                 or metadata.get("sha256") != hashlib.sha256(content).hexdigest()
             ):
                 raise PublicationError(f"manifest checksum failed: {name}")
-        html = (stage / "distill.html").read_text(encoding="utf-8")
+        html = (stage / "model-radar.html").read_text(encoding="utf-8")
         if "Content-Security-Policy" not in html:
             raise PublicationError("HTML is missing Content-Security-Policy")
         if len(html.encode("utf-8")) > self.max_html_bytes:

@@ -1,10 +1,10 @@
 import json
 from datetime import UTC, datetime
 
-from distill.codec import parse_snapshot
-from distill.config import load_config
-from distill.pipeline import run_pipeline
-from distill.tui import top_rows
+from model_radar.codec import parse_snapshot
+from model_radar.config import load_config
+from model_radar.pipeline import run_pipeline
+from model_radar.tui import top_rows
 
 FIXTURE = "tests/fixtures/models.json"
 
@@ -33,14 +33,14 @@ def test_fixture_end_to_end_publishes_all_artifacts(tmp_path, monkeypatch):
     assert snapshot.status == "complete"
     assert {path.name for path in current.iterdir()} == {
         "snapshot.json",
-        "distill.html",
+        "model-radar.html",
         "manifest.json",
     }
     published = parse_snapshot((current / "snapshot.json").read_bytes())
     manifest = json.loads((current / "manifest.json").read_text(encoding="utf-8"))
     assert published.snapshot_id == snapshot.snapshot_id
     assert manifest["files"]["snapshot.json"]["size"] > 0
-    html = (current / "distill.html").read_text(encoding="utf-8")
+    html = (current / "model-radar.html").read_text(encoding="utf-8")
     assert "Artificial Analysis performance views are unavailable" not in html
     assert "<h2>Models</h2>" not in html
 

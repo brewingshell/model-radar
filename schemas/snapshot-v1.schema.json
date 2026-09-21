@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://analysis-distill.local/schemas/snapshot-v1.schema.json",
-  "title": "Analysis Distill snapshot v1",
+  "$id": "https://model-radar.local/schemas/snapshot-v1.schema.json",
+  "title": "Model Radar snapshot v1",
   "type": "object",
   "additionalProperties": false,
   "required": [

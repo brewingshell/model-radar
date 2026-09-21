@@ -5,7 +5,7 @@ import time
 from dataclasses import dataclass
 from typing import Protocol
 
-from distill.models import FetchConfig, RawRecord, SourceConfig, SourceFailure, SourceStatus
+from model_radar.models import FetchConfig, RawRecord, SourceConfig, SourceFailure, SourceStatus
 
 
 class ConnectorError(RuntimeError):

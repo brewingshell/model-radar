@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "analysis-distill"
+name = "model-radar"
 version = "0.1.0"
 description = "Snapshot-only current-state model analysis"
 readme = "README.md"
@@ -38,7 +38,7 @@ dev = [
 ]
 
 [project.scripts]
-distill = "distill.cli:main"
+model-radar = "model_radar.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
