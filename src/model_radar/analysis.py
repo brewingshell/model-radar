@@ -17,7 +17,7 @@ from model_radar.models import (
     View,
 )
 
-_PARAMETER_SIZE = re.compile(r"(?<![\w.])(\d+(?:\.\d+)?)\s*[bB](?![a-zA-Z])")
+_PARAMETER_SIZE = re.compile(r"(?<![\w.])(\d+(?:\.\d+)?)\s*([bBmM])(?![a-zA-Z])")
 _EDGE_CAPABILITIES = frozenset({"on-device", "edge", "tiny", "tinyllm", "mobile"})
 TINY_PARAMETER_LIMIT_B = 8.0
 
@@ -26,10 +26,14 @@ def _parameter_size_b(name: str) -> float | None:
     """Best-effort parameter count in billions parsed from a model name.
 
     Sources do not expose a reliable size field, so names like ``Qwen3.5 4B``,
-    ``LFM2.5-2.6B``, or ``K2 Horizon 26B A4B`` (total, not active) are parsed.
-    Models whose names carry no size return ``None``.
+    ``LFM2.5-2.6B``, ``LFM2.5-350M``, or ``K2 Horizon 26B A4B`` (total, not
+    active) are parsed. Million-scale sizes are converted to billions. Models
+    whose names carry no size return ``None``.
     """
-    sizes = [float(match.group(1)) for match in _PARAMETER_SIZE.finditer(name)]
+    sizes = [
+        float(match.group(1)) / (1000.0 if match.group(2).casefold() == "m" else 1.0)
+        for match in _PARAMETER_SIZE.finditer(name)
+    ]
     return max(sizes) if sizes else None
 
 
@@ -499,8 +503,9 @@ def build_views(
         model_ids=edge_ids,
         annotations={
             "metric": (
-                "Hugging Face downloads; models tagged on-device or edge, "
-                "quantised re-uploads collapsed"
+                "Hugging Face downloads; models tagged on-device or edge, quantised re-uploads "
+                "collapsed; size is estimated weights at FP16; benchmark is matched by model "
+                "name where Artificial Analysis covers it"
             )
         },
     )

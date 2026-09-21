@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import base64
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 
 from jinja2 import BaseLoader, Environment, select_autoescape
 
-from model_radar.analysis import model_type
+from model_radar.analysis import _benchmark_family_key, model_type
 from model_radar.models import ModelRecord, Snapshot, View
 
 _STYLE = (
@@ -280,6 +280,8 @@ _TEMPLATE = """<!doctype html>
 <th>AA Elo</th><th>API cost</th><th>Samples</th><th>Released</th><th>Open weights</th>
 {% elif tab.view.view_id == 'tiny-llm-top10' %}
 <th>Params (B)</th><th>Size (GB)</th><th>Benchmark (AA Index)</th><th>LiveBench</th><th>Cost per benchmark task (USD)</th><th>Median output tokens/s</th>
+{% elif tab.view.view_id == 'edge-models-top10' %}
+<th>Params (B)</th><th>Size (GB)</th><th>Benchmark (AA Index)</th><th>LiveBench</th><th>Downloads</th><th>HF created/updated</th>
 {% elif tab.view.view_id == 'performance-top5' %}
 <th>LiveBench</th><th>AA Intelligence Index</th><th>Cost per benchmark task (USD)</th><th>Median output tokens/s</th>
 {% elif tab.view.view_id == 'performance-per-token-top5' %}
@@ -305,6 +307,14 @@ _TEMPLATE = """<!doctype html>
 <td>{{ model.intelligence_index if model.intelligence_index is not none else 'unknown' }}</td>
 <td>{{ model.livebench_index if model.livebench_index is not none else 'unknown' }}</td>
 <td>{{ model.cost_per_task_usd if model.cost_per_task_usd is not none else 'unknown' }}</td><td>{{ model.median_output_tokens_per_second if model.median_output_tokens_per_second is not none else 'unknown' }}</td>
+{% elif tab.view.view_id == 'edge-models-top10' %}
+{% set bench = tab.benchmarks.get(model.model_id) %}
+<td>{{ model.parameters_b if model.parameters_b is not none else 'unknown' }}</td>
+<td>{{ format_size_gb(model.parameters_b) }}</td>
+<td>{{ model.intelligence_index if model.intelligence_index is not none else (bench[0] if bench and bench[0] is not none else 'unknown') }}</td>
+<td>{{ model.livebench_index if model.livebench_index is not none else (bench[1] if bench and bench[1] is not none else 'unknown') }}</td>
+<td>{{ model.downloads if model.downloads is not none else 'unknown' }}</td>
+<td>{{ format_date(model.created_at or model.updated_at) }}</td>
 {% elif tab.view.view_id == 'performance-top5' %}
 <td>{{ model.livebench_index if model.livebench_index is not none else 'unknown' }}</td>
 <td>{{ model.intelligence_index if model.intelligence_index is not none else 'unknown' }}</td><td>{{ model.cost_per_task_usd if model.cost_per_task_usd is not none else 'unknown' }}</td><td>{{ model.median_output_tokens_per_second if model.median_output_tokens_per_second is not none else 'unknown' }}</td>
@@ -489,6 +499,42 @@ class _PrimaryTab:
     title: str
     models: list[ModelRecord]
     unavailable: bool
+    benchmarks: dict[str, tuple[float | None, float | None]] = field(default_factory=dict)
+
+
+def _benchmark_index(
+    models: list[ModelRecord],
+) -> dict[str, ModelRecord]:
+    """Best benchmark-bearing record per normalised family name."""
+    best: dict[str, ModelRecord] = {}
+    for model in models:
+        if model.intelligence_index is None and model.livebench_index is None:
+            continue
+        key = _benchmark_family_key(model.name)
+        current = best.get(key)
+        if current is None or (model.intelligence_index or 0) > (current.intelligence_index or 0):
+            best[key] = model
+    return best
+
+
+def benchmark_enrichment(
+    models: list[ModelRecord], index: dict[str, ModelRecord]
+) -> dict[str, tuple[float | None, float | None]]:
+    """Benchmark values for models that lack their own, matched by family name.
+
+    Hugging Face edge and on-device records are distinct from their Artificial
+    Analysis counterparts, so a model like ``openbmb/MiniCPM5-2B`` has no score
+    of its own. This borrows the score from the matching name where one exists,
+    and leaves genuinely uncovered models absent.
+    """
+    enriched: dict[str, tuple[float | None, float | None]] = {}
+    for model in models:
+        if model.intelligence_index is not None or model.livebench_index is not None:
+            continue
+        match = index.get(_benchmark_family_key(model.name))
+        if match is not None:
+            enriched[model.model_id] = (match.intelligence_index, match.livebench_index)
+    return enriched
 
 
 def primary_tabs(snapshot: Snapshot, model_type_tabs: dict[str, list[str]]) -> list[_PrimaryTab]:
@@ -499,6 +545,7 @@ def primary_tabs(snapshot: Snapshot, model_type_tabs: dict[str, list[str]]) -> l
     """
     model_by_id = {model.model_id: model for model in snapshot.models}
     catalog = _model_type_catalog(snapshot.models)
+    benchmark_index = _benchmark_index(snapshot.models)
     tabs: list[_PrimaryTab] = []
     for view in snapshot.views:
         if view.view_id not in _PRIMARY_VIEW_IDS:
@@ -511,6 +558,11 @@ def primary_tabs(snapshot: Snapshot, model_type_tabs: dict[str, list[str]]) -> l
                 models = by_category.get(category, [])
                 if not models:
                     continue
+                benchmarks = (
+                    benchmark_enrichment(models, benchmark_index)
+                    if view.view_id == "edge-models-top10"
+                    else {}
+                )
                 tabs.append(
                     _PrimaryTab(
                         view=view,
@@ -519,6 +571,7 @@ def primary_tabs(snapshot: Snapshot, model_type_tabs: dict[str, list[str]]) -> l
                         title=modality_view_title(view.title, category),
                         models=models,
                         unavailable=False,
+                        benchmarks=benchmarks,
                     )
                 )
                 emitted = True

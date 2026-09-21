@@ -508,3 +508,94 @@ def test_tiny_llm_table_shows_params_size_and_benchmark():
     assert "<td>7.0</td>" in tiny
     assert "<td>14.0</td>" in tiny
     assert "<td>5.2</td>" in tiny
+
+
+def test_on_device_table_shows_params_size_and_matched_benchmark():
+    models = normalize(
+        [
+            RawRecord(
+                source_id="aa/minicpm-2b",
+                name="MiniCPM5-2B",
+                intelligence_index=12.0,
+                provenance=["artificial-analysis"],
+            ),
+            RawRecord(
+                source_id="openbmb/MiniCPM5-2B",
+                name="openbmb/MiniCPM5-2B",
+                capabilities=["on-device", "tool-calling"],
+                downloads=460533,
+                provenance=["huggingface"],
+            ),
+            RawRecord(
+                source_id="Cactus-Compute/needle2",
+                name="Cactus-Compute/needle2",
+                capabilities=["on-device", "edge"],
+                downloads=32939,
+                provenance=["huggingface"],
+            ),
+        ]
+    )
+    snapshot = Snapshot(
+        snapshot_id="edge-cols",
+        generated_at=datetime(2026, 9, 21, tzinfo=UTC),
+        status="complete",
+        source_status=[],
+        models=models,
+        views=build_views(models),
+    )
+
+    html = render_html(snapshot).decode("utf-8")
+    panel = html.split("<h3>On-device models top 10</h3>", 1)[1].split("</table>", 1)[0]
+
+    assert "<th>Params (B)</th>" in panel
+    assert "<th>Size (GB)</th>" in panel
+    assert "<th>Benchmark (AA Index)</th>" in panel
+    assert "<th>LiveBench</th>" in panel
+    assert "<th>Downloads</th>" in panel
+    assert "<td>12.0</td>" in panel
+    assert "<td>4.0</td>" in panel
+    assert "Cactus-Compute/needle2" in panel
+
+
+def test_benchmark_enrichment_matches_by_family_name():
+    from model_radar.render import _benchmark_index, benchmark_enrichment
+
+    models = normalize(
+        [
+            RawRecord(
+                source_id="aa/minicpm-2b",
+                name="MiniCPM5-2B",
+                intelligence_index=12.0,
+                provenance=["artificial-analysis"],
+            ),
+            RawRecord(
+                source_id="openbmb/MiniCPM5-2B",
+                name="openbmb/MiniCPM5-2B",
+                provenance=["huggingface"],
+            ),
+            RawRecord(
+                source_id="Cactus-Compute/needle2",
+                name="Cactus-Compute/needle2",
+                provenance=["huggingface"],
+            ),
+        ]
+    )
+    models = attach_benchmarks(
+        models,
+        [
+            RawRecord(
+                source_id="livebench:minicpm5-2b",
+                name="minicpm5-2b",
+                benchmark_source="livebench",
+                benchmark_index=55.0,
+                provenance=["livebench"],
+            )
+        ],
+    )
+
+    enriched = benchmark_enrichment(models, _benchmark_index(models))
+
+    hf = next(model for model in models if model.slug == "openbmb-minicpm5-2b")
+    needle = next(model for model in models if model.slug == "cactus-compute-needle2")
+    assert enriched[hf.model_id] == (12.0, 55.0)
+    assert needle.model_id not in enriched

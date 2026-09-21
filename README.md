@@ -101,9 +101,12 @@ The LLM tabs also include two size-focused views. **Tiny LLM top 10** ranks mode
 count, an estimated FP16 weights size in GB, the benchmark index, and LiveBench. Parameter counts
 are parsed from model names because no source exposes a reliable size field. **On-device models top 10** covers
 Hugging Face models tagged `on-device`, `edge`, `tiny`, or `mobile`, ranked by downloads with
-quantised re-uploads and derivative names collapsed so each model appears once. Models such as
-`Cactus-Compute/needle2`, `needle3`, and the Bonsai quants appear here rather than in the
-intelligence-ranked views, because they are not covered by Artificial Analysis.
+quantised re-uploads and derivative names collapsed so each model appears once. Its table shows the
+parameter count, estimated FP16 weights size in GB, benchmark, LiveBench, and downloads. Benchmark
+values are matched by model name where Artificial Analysis covers the model, so entries such as
+`openbmb/MiniCPM5-2B` show a score while `Cactus-Compute/needle2`, `needle3`, and the Bonsai quants
+stay `unknown` because they are not covered. Those models appear here rather than in the
+intelligence-ranked views for the same reason.
 
 The report includes two organization Copilot tabs. Its catalog is configured in
 `config/app.yaml` from the organization model list. Model families and thinking levels are

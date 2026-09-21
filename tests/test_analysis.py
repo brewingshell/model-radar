@@ -652,6 +652,12 @@ def test_parameter_size_parsed_from_model_names():
     assert _parameter_size_b("Cactus-Compute/needle2") is None
 
 
+def test_parameter_size_understands_millions():
+    assert _parameter_size_b("LiquidAI/LFM2.5-350M") == 0.35
+    assert _parameter_size_b("LiquidAI/LFM2.5-230M") == 0.23
+    assert _parameter_size_b("hexgrad/Kokoro-82M") == 0.082
+
+
 def test_normalize_fills_parameters_b_from_name():
     models = normalize([RawRecord(source_id="Qwen/Qwen3.5-4B", name="Qwen3.5 4B")])
 
