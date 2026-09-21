@@ -2,6 +2,8 @@ from datetime import UTC, datetime
 
 from model_radar.analysis import (
     _benchmark_family_key,
+    _edge_model_ids,
+    _parameter_size_b,
     apply_copilot_catalog,
     attach_benchmarks,
     build_views,
@@ -638,3 +640,99 @@ def test_livebench_slug_with_date_matches_catalog_display_name():
 
     assert enriched[0].livebench_index == 75.19
     assert enriched[0].effort_level == "high"
+
+
+def test_parameter_size_parsed_from_model_names():
+    assert _parameter_size_b("Qwen3.5 4B") == 4.0
+    assert _parameter_size_b("LFM2.5-2.6B") == 2.6
+    assert _parameter_size_b("Gemma 4 12B") == 12.0
+    assert _parameter_size_b("K2 Horizon 26B A4B") == 26.0
+    assert _parameter_size_b("Exaone 4.0 1.2B") == 1.2
+    assert _parameter_size_b("Bonsai-2-27B-1bit") == 27.0
+    assert _parameter_size_b("Cactus-Compute/needle2") is None
+
+
+def test_normalize_fills_parameters_b_from_name():
+    models = normalize([RawRecord(source_id="Qwen/Qwen3.5-4B", name="Qwen3.5 4B")])
+
+    assert models[0].parameters_b == 4.0
+
+
+def test_tiny_llm_view_keeps_only_small_models():
+    models = normalize(
+        [
+            RawRecord(
+                source_id="aa/qwen-small",
+                name="Qwen3.5 4B",
+                intelligence_index=13.0,
+                provenance=["artificial-analysis"],
+            ),
+            RawRecord(
+                source_id="aa/k2-small",
+                name="K2 Horizon 7B",
+                intelligence_index=21.0,
+                provenance=["artificial-analysis"],
+            ),
+            RawRecord(
+                source_id="aa/big",
+                name="Qwen3.8 27B",
+                intelligence_index=34.0,
+                provenance=["artificial-analysis"],
+            ),
+        ]
+    )
+
+    tiny = next(view for view in build_views(models) if view.view_id == "tiny-llm-top10")
+    names = {model.name for model in models if model.model_id in tiny.model_ids}
+
+    assert names == {"Qwen3.5 4B", "K2 Horizon 7B"}
+    assert "total parameters <= 8B" in tiny.annotations["metric"]
+
+
+def test_edge_view_includes_tagged_models_and_collapses_quants():
+    models = normalize(
+        [
+            RawRecord(
+                source_id="Cactus-Compute/needle2",
+                name="Cactus-Compute/needle2",
+                capabilities=["on-device", "tool-calling"],
+                downloads=32939,
+                provenance=["huggingface"],
+            ),
+            RawRecord(
+                source_id="prism-ml/Ternary-Bonsai-2-27B-gguf",
+                name="prism-ml/Ternary-Bonsai-2-27B-gguf",
+                capabilities=["on-device", "gguf"],
+                downloads=2227879,
+                provenance=["huggingface"],
+            ),
+            RawRecord(
+                source_id="dealignai/Bonsai-2-27B-Ternary-CRACK-GGUF",
+                name="dealignai/Bonsai-2-27B-Ternary-CRACK-GGUF",
+                capabilities=["on-device", "gguf"],
+                downloads=33051,
+                provenance=["huggingface"],
+            ),
+            RawRecord(
+                source_id="openbmb/MiniCPM5-2B-GGUF",
+                name="openbmb/MiniCPM5-2B-GGUF",
+                capabilities=["edge", "gguf"],
+                downloads=188174,
+                provenance=["huggingface"],
+            ),
+            RawRecord(
+                source_id="meta-llama/Llama-3.1-8B",
+                name="meta-llama/Llama-3.1-8B",
+                capabilities=["text-generation"],
+                downloads=537978,
+                provenance=["huggingface"],
+            ),
+        ]
+    )
+
+    ids = _edge_model_ids(models)
+    selected = {model.name: model for model in models if model.model_id in ids}
+
+    assert "Cactus-Compute/needle2" in selected
+    assert "meta-llama/Llama-3.1-8B" not in selected
+    assert sum(name.startswith(("prism-ml/", "dealignai/")) for name in selected) == 1

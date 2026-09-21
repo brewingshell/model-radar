@@ -216,7 +216,7 @@ _TEMPLATE = """<!doctype html>
 <main class="page">
 <p class="report-meta"><span>{{ snapshot.status|title }} · Generated {{ format_date(snapshot.generated_at) }}</span><button class="theme-toggle" id="theme-toggle" type="button" aria-label="Use light theme" title="Use light theme">☼</button></p>
 {% if snapshot.changes.get('summary') %}<section class="changes"><header><div><h2>What's new</h2><p class="section-note">Since the previous retained snapshot.</p></div></header><ul class="change-list">{% for change in snapshot.changes.get('summary', []) %}<li>{{ change }}</li>{% endfor %}</ul></section>{% endif %}
-<section><header><div><h2>Decision views</h2><p class="section-note">Five shortlists for choosing what deserves attention now.</p></div></header>
+<section><header><div><h2>Decision views</h2><p class="section-note">Shortlists for choosing what deserves attention now.</p></div></header>
 <div class="decision-filters" aria-label="Decision view filters">
 <label class="filter-field" for="decision-modality">Model type
 <select class="filter-select" id="decision-modality">
@@ -236,7 +236,7 @@ _TEMPLATE = """<!doctype html>
 <div class="table-scroll"><table class="decision-table" data-model-table="{{ tab.category }}"><thead><tr><th>Rank</th><th>Model</th>
 {% if tab.category != 'llm' %}
 <th>AA Elo</th><th>API cost</th><th>Samples</th><th>Released</th><th>Open weights</th>
-{% elif tab.view.view_id == 'performance-top5' %}
+{% elif tab.view.view_id in ('performance-top5', 'tiny-llm-top10') %}
 <th>LiveBench</th><th>AA Intelligence Index</th><th>Cost per benchmark task (USD)</th><th>Median output tokens/s</th>
 {% elif tab.view.view_id == 'performance-per-token-top5' %}
 <th>LiveBench</th><th>AA Intelligence / weighted USD per 1M tokens</th><th>AA Intelligence Index</th><th>Input USD / 1M</th><th>Output USD / 1M</th>
@@ -249,13 +249,13 @@ _TEMPLATE = """<!doctype html>
 {% else %}
 <th>HF created/updated</th><th>Downloads</th><th>Likes</th><th>Parameters (B)</th>
 {% endif %}
-{% if tab.category == 'llm' and tab.view.view_id != 'meaningful-new-hf-top5' %}<th>Copilot</th>{% endif %}<th>Source</th></tr></thead><tbody>
+{% if tab.category == 'llm' and tab.view.view_id not in ('meaningful-new-hf-top5', 'edge-models-top10') %}<th>Copilot</th>{% endif %}<th>Source</th></tr></thead><tbody>
 {% for model in tab.models %}
-{% set source_value = model.artificial_analysis_model_url if tab.view.view_id != 'meaningful-new-hf-top5' else (model.source_urls[0] if model.source_urls else None) %}
+{% set source_value = model.source_urls[0] if tab.view.view_id in ('meaningful-new-hf-top5', 'edge-models-top10') and model.source_urls else model.artificial_analysis_model_url %}
 <tr class="decision-row" data-model-type="{{ model_type(model) }}" data-open-weight="{{ 'true' if model.open_weights is true else 'false' }}"><td><span class="rank">{{ loop.index }}</span></td><td><span class="model">{{ model.name }}{% if model.open_weights is true %}<span class="open-weight-mark" title="Open weights" aria-label="Open weights">OW</span>{% endif %}</span><span class="sub">{{ model.organization or 'source metadata' }}</span></td>
 {% if tab.category != 'llm' %}
 <td>{{ model.artificial_analysis_modality_elo if model.artificial_analysis_modality_elo is not none else 'unknown' }}</td><td>{% if model.artificial_analysis_modality_cost is not none %}${{ model.artificial_analysis_modality_cost }} / {{ model.artificial_analysis_modality_cost_unit }}{% else %}unknown{% endif %}</td><td>{{ model.artificial_analysis_modality_samples if model.artificial_analysis_modality_samples is not none else 'unknown' }}</td><td>{{ model.artificial_analysis_modality_release or 'unknown' }}</td><td>{{ 'yes' if model.open_weights is true else 'no' if model.open_weights is false else 'unknown' }}</td>
-{% elif tab.view.view_id == 'performance-top5' %}
+{% elif tab.view.view_id in ('performance-top5', 'tiny-llm-top10') %}
 <td>{{ model.livebench_index if model.livebench_index is not none else 'unknown' }}</td>
 <td>{{ model.intelligence_index if model.intelligence_index is not none else 'unknown' }}</td><td>{{ model.cost_per_task_usd if model.cost_per_task_usd is not none else 'unknown' }}</td><td>{{ model.median_output_tokens_per_second if model.median_output_tokens_per_second is not none else 'unknown' }}</td>
 {% elif tab.view.view_id == 'performance-per-token-top5' %}
@@ -280,7 +280,7 @@ _TEMPLATE = """<!doctype html>
 <td>{{ model.likes if model.likes is not none else 'unknown' }}</td>
 <td>{{ model.parameters_b if model.parameters_b is not none else 'unknown' }}</td>
 {% endif %}
-{% if tab.category == 'llm' and tab.view.view_id != 'meaningful-new-hf-top5' %}<td>{{ 'yes' if model.copilot_ready is true else 'no' if model.copilot_ready is false else 'unknown' }}</td>{% endif %}
+{% if tab.category == 'llm' and tab.view.view_id not in ('meaningful-new-hf-top5', 'edge-models-top10') %}<td>{{ 'yes' if model.copilot_ready is true else 'no' if model.copilot_ready is false else 'unknown' }}</td>{% endif %}
 {% if source_value %}<td><a class="source-link" href="{{ safe_url(source_value) }}" title="Open source" aria-label="Open source for {{ model.name }}"><span class="external-icon" aria-hidden="true">↗</span></a></td>{% else %}<td class="unknown">unknown</td>{% endif %}
 </tr>
 {% endfor %}
@@ -301,6 +301,8 @@ _PRIMARY_VIEW_IDS = (
     "benchmark-synthesis-top10",
     "performance-top5",
     "performance-per-token-top5",
+    "tiny-llm-top10",
+    "edge-models-top10",
     "meaningful-new-hf-top5",
 )
 

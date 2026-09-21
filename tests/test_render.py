@@ -382,3 +382,39 @@ def test_llm_tabs_have_no_modality_suffix():
     assert "Performance top 10" in html
     assert "Performance t2i top 10" not in html
     assert 'data-model-types="llm"' in html
+
+
+def test_tiny_and_on_device_tabs_render_for_llm():
+    models = normalize(
+        [
+            RawRecord(
+                source_id="aa/k2-7b",
+                name="K2 Horizon 7B",
+                intelligence_index=21.0,
+                provenance=["artificial-analysis"],
+            ),
+            RawRecord(
+                source_id="Cactus-Compute/needle2",
+                name="Cactus-Compute/needle2",
+                capabilities=["on-device", "tool-calling"],
+                downloads=32939,
+                provenance=["huggingface"],
+            ),
+        ]
+    )
+    snapshot = Snapshot(
+        snapshot_id="tiny",
+        generated_at=datetime(2026, 9, 21, tzinfo=UTC),
+        status="complete",
+        source_status=[],
+        models=models,
+        views=build_views(models),
+    )
+
+    html = render_html(snapshot).decode("utf-8")
+
+    assert ">Tiny LLM top 10<" in html
+    assert ">On-device models top 10<" in html
+    assert "Cactus-Compute/needle2" in html
+    assert "K2 Horizon 7B" in html
+    assert 'data-model-table="llm"' in html

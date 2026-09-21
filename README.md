@@ -91,6 +91,14 @@ source `createdAt`/`lastModified` plus a transparent adoption heuristic; OpenRou
 optional secondary metadata source. A failed required AA source leaves the primary performance
 views unavailable and prevents a production publication rather than substituting catalog metadata.
 
+The LLM tabs also include two size-focused views. **Tiny LLM top 10** ranks models at or below
+8B total parameters by Artificial Analysis Intelligence Index. Parameter counts are parsed from
+model names because no source exposes a reliable size field. **On-device models top 10** covers
+Hugging Face models tagged `on-device`, `edge`, `tiny`, or `mobile`, ranked by downloads with
+quantised re-uploads and derivative names collapsed so each model appears once. Models such as
+`Cactus-Compute/needle2`, `needle3`, and the Bonsai quants appear here rather than in the
+intelligence-ranked views, because they are not covered by Artificial Analysis.
+
 The report includes two organization Copilot tabs. Its catalog is configured in
 `config/app.yaml` from the organization model list. Model families and thinking levels are
 extracted generically from names such as `Luna (max)`, `Sol (high)`, and `Opus (xhigh)`, rather

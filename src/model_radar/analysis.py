@@ -17,6 +17,69 @@ from model_radar.models import (
     View,
 )
 
+_PARAMETER_SIZE = re.compile(r"(?<![\w.])(\d+(?:\.\d+)?)\s*[bB](?![a-zA-Z])")
+_EDGE_CAPABILITIES = frozenset({"on-device", "edge", "tiny", "tinyllm", "mobile"})
+TINY_PARAMETER_LIMIT_B = 8.0
+
+
+def _parameter_size_b(name: str) -> float | None:
+    """Best-effort parameter count in billions parsed from a model name.
+
+    Sources do not expose a reliable size field, so names like ``Qwen3.5 4B``,
+    ``LFM2.5-2.6B``, or ``K2 Horizon 26B A4B`` (total, not active) are parsed.
+    Models whose names carry no size return ``None``.
+    """
+    sizes = [float(match.group(1)) for match in _PARAMETER_SIZE.finditer(name)]
+    return max(sizes) if sizes else None
+
+
+def _is_edge_model(model: ModelRecord) -> bool:
+    capabilities = {value.casefold() for value in model.capabilities}
+    return bool(capabilities & _EDGE_CAPABILITIES)
+
+
+_EDGE_VARIANT_TOKENS = (
+    r"(?:ternary|gguf|mlx|1bit|2bit|3bit|4bit|8bit|16bit|awq|gptq|fp8|bf16|int4|int8|"
+    r"q4|q8|mtp|dflash|dspark)"
+)
+_EDGE_VARIANT = re.compile(rf"(?:^|[-_]){_EDGE_VARIANT_TOKENS}(?=[-_]|$)")
+_EDGE_DERIVATIVE = re.compile(r"abliterated|uncensored|heretic|crack|derisked")
+_EDGE_NON_LLM = re.compile(r"tts|asr|whisper|embedding|rerank")
+
+
+def _edge_family_key(name: str) -> str:
+    """Collapse quantisation and vendor suffixes so re-uploads share one key."""
+    value = name.casefold().split("/", 1)[-1]
+    previous = None
+    while previous != value:
+        previous = value
+        value = _EDGE_VARIANT.sub("-", value)
+    return re.sub(r"[^a-z0-9]+", "-", value).strip("-")
+
+
+def _edge_model_ids(models: list[ModelRecord], limit: int = 10) -> list[str]:
+    """Hugging Face models tagged for on-device or edge use, by downloads.
+
+    Community re-uploads (derivative names) and non-language models are
+    excluded so the list surfaces original models rather than quantised copies.
+    """
+    candidates = [
+        model
+        for model in models
+        if "huggingface" in model.provenance
+        and _is_edge_model(model)
+        and not _EDGE_DERIVATIVE.search(model.name.casefold())
+        and not _EDGE_NON_LLM.search(model.name.casefold())
+    ]
+    representatives: dict[str, ModelRecord] = {}
+    for model in candidates:
+        key = _edge_family_key(model.name)
+        current = representatives.get(key)
+        if current is None or _popularity(model) > _popularity(current):
+            representatives[key] = model
+    ranked = sorted(representatives.values(), key=_popularity, reverse=True)
+    return [model.model_id for model in ranked[:limit]]
+
 
 def normalize(records: Iterable[RawRecord]) -> list[ModelRecord]:
     grouped: dict[str, list[RawRecord]] = defaultdict(list)
@@ -55,7 +118,7 @@ def normalize(records: Iterable[RawRecord]) -> list[ModelRecord]:
             tool_calling=_merge_bool(ordered, "tool_calling"),
             architecture=_merge_mapping(ordered, "architecture"),
             provider_details=_merge_mapping(ordered, "provider_details"),
-            parameters_b=first.parameters_b,
+            parameters_b=first.parameters_b or _parameter_size_b(first.name),
             context_length=max((item.context_length or 0 for item in ordered), default=0) or None,
             quantization=first.quantization,
             release_date=_date_extreme(ordered, "release_date"),
@@ -405,11 +468,55 @@ def build_views(
             "No matching Copilot organization catalog entries have AA performance",
         )
 
+    tiny_models = [
+        model
+        for model in performance_models
+        if model.parameters_b is not None and model.parameters_b <= TINY_PARAMETER_LIMIT_B
+    ]
+    tiny_view = View(
+        view_id="tiny-llm-top10",
+        title="Tiny LLM top 10",
+        model_ids=_decision_ranked_ids(tiny_models, lambda item: item.intelligence_index),
+        annotations={
+            "metric": (
+                "Artificial Analysis Intelligence Index; "
+                f"total parameters <= {int(TINY_PARAMETER_LIMIT_B)}B"
+            )
+        },
+    )
+    if not tiny_view.model_ids:
+        tiny_view = _unavailable_view(
+            "tiny-llm-top10",
+            "Tiny LLM top 10",
+            f"No model at or below {int(TINY_PARAMETER_LIMIT_B)}B parameters has an "
+            "Artificial Analysis Intelligence Index",
+        )
+    edge_ids = _edge_model_ids(models)
+    edge_view = View(
+        view_id="edge-models-top10",
+        title="On-device models top 10",
+        model_ids=edge_ids,
+        annotations={
+            "metric": (
+                "Hugging Face downloads; models tagged on-device or edge, "
+                "quantised re-uploads collapsed"
+            )
+        },
+    )
+    if not edge_view.model_ids:
+        edge_view = _unavailable_view(
+            "edge-models-top10",
+            "On-device models top 10",
+            "No Hugging Face model is tagged on-device or edge",
+        )
+
     views = [
         copilot_per_token_view,
         copilot_best_view,
         performance_view,
         efficiency_view,
+        tiny_view,
+        edge_view,
         meaningful_view,
         View(
             view_id="popular",
