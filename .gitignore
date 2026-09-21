@@ -9,3 +9,5 @@ venv/
 .env
 out/
 model-radar/
+dist/
+build/

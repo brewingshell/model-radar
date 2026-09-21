@@ -330,7 +330,7 @@ Required suites:
 - JSON Schema compatibility and hostile-input cases.
 - Required/optional source failure matrix.
 - Failure injection at every atomic publication step.
-- Playwright tests for `file://`, zero network, CSP, XSS, keyboard use, and accessibility.
+- Automated checks for CSP, XSS escaping, offline rendering, and accessibility markers.
 - TUI snapshots at 80x24, 120x40, and 200x60, including ASCII and no-color modes.
 - HTML/TUI parity over the same snapshot fixture.
 - Peak-memory and full-invocation performance tests.
@@ -352,7 +352,7 @@ Optional live connector canaries detect upstream schema drift but do not create 
 
 - The product is an on-demand current-state snapshot, not a daily historical catalog.
 - There is no database because no cross-run analytical state is required.
-- Polars is the sole in-process analysis engine unless measurement proves plain Python is simpler.
+- Analysis is pure Python over the validated snapshot contract; no external analytical engine is required.
 - HTML and TUI share one versioned `snapshot.json` contract.
 - Previous releases exist only to make publication atomic and provide manual rollback.
 - Source completeness is explicit; partial required-source results never masquerade as complete.

@@ -10,6 +10,10 @@ is a point-in-time report generator, not a continuously maintained model catalog
 fetches the current configured sources, analyzes the complete result, writes an HTML report and a
 TUI-readable snapshot, and exits.
 
+> **Implementation status:** the repository ships the snapshot-only core documented in `README.md`.
+> Verification and acceptance items that are not yet implemented are design targets. Where this
+> document and the code disagree about current behavior, the code is authoritative.
+
 No database, migration system, persistent cache, or web service is required. The publisher keeps a
 rolling two-week JSON history solely to explain changes between snapshots; it is not a canonical
 model catalog. An external scheduler may invoke the command, but scheduled execution has no special
@@ -70,7 +74,7 @@ flowchart LR
     Caller[Human / optional scheduler] --> CLI[Typer CLI]
     CLI --> Fetch[Bounded async fetch]
     Fetch --> Validate[Pydantic validation]
-    Validate --> Frames[Polars frames]
+    Validate --> Frames[Typed records]
     Frames --> Resolve[Identity and variants]
     Resolve --> Analyze[Enrich, score, audit]
     Analyze --> Snapshot[Immutable Snapshot]
@@ -91,28 +95,23 @@ published release untouched, and retained history is never used as analysis inpu
 | Concern | Choice | Why |
 |---|---|---|
 | Runtime | Python 3.13 | Fast implementation and strong data/HTTP ecosystem |
-| Packaging | `uv` + `hatchling` | Fast locked installs with little configuration |
-| HTTP | `httpx` | Async pagination, streaming, HTTP/2, explicit limits |
+| Packaging | `uv` + setuptools | Locked installs with a minimal, widely available backend |
+| HTTP | `httpx` | Async pagination, streaming, explicit limits |
 | Retries | `tenacity` | Bounded and testable transient-failure policy |
 | Validation | Pydantic v2 | Strict source, configuration, and snapshot contracts |
-| Settings | `pydantic-settings` | Typed environment and CLI overrides |
-| Analysis | Polars | Efficient joins, grouping, percentiles, and stable sorting |
-| Identity candidates | RapidFuzz | Fast conservative name matching |
-| Feeds | `feedparser` | Mature RSS/Atom support |
+| Analysis | Pure Python | Deterministic grouping and merging at the current scale |
 | CLI | Typer + Rich | Typed commands and useful terminal progress |
 | HTML | Jinja2 + vanilla JavaScript | One offline file without a frontend build |
 | TUI | Textual | Rich terminal viewer in the same language |
-| Tests | pytest + Hypothesis + respx | Unit, property, and HTTP fixture coverage |
-| Browser validation | Playwright | Offline, CSP, XSS, and accessibility checks |
-| Quality | Ruff + mypy + pip-audit | Formatting, typing, linting, dependency audit |
+| Tests | pytest | Offline unit and HTTP-fixture coverage |
+| Quality | Ruff + mypy | Formatting, linting, and typing |
 
 Commit `uv.lock` and use `uv sync --frozen`. Do not add SQLite, DuckDB, SQLAlchemy, Alembic,
 PostgreSQL, FastAPI, APScheduler, React, a workflow engine, or a message broker.
 
-Polars is the only analytical engine. At the expected scale, it avoids custom Python joins while
-remaining entirely in process. If measurements show that plain Python is faster to start and the
-record count stays small, Polars can be replaced behind the analysis contracts without changing
-the snapshot format.
+Analysis is pure Python. The snapshot scale is small enough that explicit grouping and merge
+reducers stay fast to start and easy to audit, with no extra analytical engine. An engine can be
+introduced behind the analysis functions later without changing the snapshot format.
 
 ## 4. Repository Layout
 
@@ -122,61 +121,36 @@ model-radar/
 ├── uv.lock
 ├── config/
 │   ├── app.yaml
-│   ├── sources.yaml
-│   ├── benchmarks.yaml
-│   ├── scoring.yaml
-│   ├── licences.yaml
-│   ├── hardware.yaml
-│   ├── views.yaml
-│   └── presentation.yaml
-├── data/
-│   ├── aliases.yaml
-│   └── organisations.yaml
+│   ├── fixture.yaml
+│   ├── models.json
+│   └── org.json
 ├── schemas/
 │   └── snapshot-v1.schema.json
 ├── src/model_radar/
 │   ├── __init__.py
 │   ├── __main__.py
+│   ├── py.typed
+│   ├── analysis.py
 │   ├── cli.py
+│   ├── codec.py
 │   ├── config.py
-│   ├── errors.py
-│   ├── contracts/
-│   │   ├── source.py
-│   │   ├── model.py
-│   │   ├── score.py
-│   │   └── snapshot.py
-│   ├── connectors/
-│   │   ├── base.py
-│   │   ├── client.py
-│   │   ├── huggingface.py
-│   │   ├── openrouter.py
-│   │   └── feeds.py
-│   ├── normalise/
-│   ├── resolve/
-│   ├── enrich/
-│   ├── score/
-│   ├── views/
-│   ├── snapshot/
-│   │   ├── builder.py
-│   │   ├── codec.py
-│   │   └── validation.py
-│   ├── render/
-│   │   ├── html.py
-│   │   ├── templates/report.html.j2
-│   │   └── assets/
-│   ├── tui/
-│   └── publish/
-│       └── atomic.py
+│   ├── connectors.py
+│   ├── models.py
+│   ├── pipeline.py
+│   ├── publisher.py
+│   ├── render.py
+│   ├── source.py
+│   └── tui.py
 ├── tests/
-│   ├── unit/
-│   ├── contract/
-│   ├── integration/
-│   ├── property/
-│   ├── surface/
-│   ├── security/
-│   ├── fixtures/
-│   └── golden/
-├── out/
+│   ├── fixtures/models.json
+│   ├── test_analysis.py
+│   ├── test_cli.py
+│   ├── test_pipeline.py
+│   ├── test_publisher.py
+│   ├── test_render.py
+│   ├── test_sources.py
+│   └── test_tui.py
+└── out/
   ├── snapshot.json
   ├── model-radar.html
   ├── manifest.json
@@ -191,13 +165,13 @@ only to generate What's New and never as analysis input.
 ## 5. Package Boundaries
 
 ```text
-contracts/config
+config/models
   ↑
-normalise/resolve/enrich/score/views
+analysis (normalise / resolve / score / views)
   ↑
-connectors/snapshot/render/tui
+connectors/source/render/tui
   ↑
-publish
+pipeline/publisher/codec
   ↑
 cli
 ```
@@ -214,8 +188,8 @@ Enforce package direction with an import-boundary test.
 
 ## 6. Core Contracts
 
-Use frozen strict Pydantic models at external boundaries. Use Polars frames internally only after
-validation; never pass arbitrary API dictionaries into analysis code.
+Use frozen strict Pydantic models at external boundaries. Keep analysis in pure Python over validated
+typed records; never pass arbitrary API dictionaries into analysis code.
 
 ```python
 class RequestPlan(BaseModel):
@@ -311,24 +285,21 @@ watermarks, ETags, stale caches, or circuit-breaker records.
 
 ### 9.1 Normalization
 
-Validate source payloads first, then build one Polars frame per logical entity: source models,
-benchmark observations, provider prices, capabilities, and provenance. Define explicit schemas;
-reject unexpected nullability or incompatible types rather than relying on inference.
+Validate source payloads into the typed `RawRecord` contract first, then group records by canonical
+key and merge each group field by field with explicit, deterministic reducers: averaged prices,
+maximal counts, sorted unions for capabilities and providers, and preserved provenance. Reject
+values that violate the contract rather than relying on inference.
 
 ### 9.2 Identity and Variants
 
-Apply the first successful rule:
+Group records by canonical key: the lowercased `source_id` with unsafe characters replaced. Within a
+group, order assertions deterministically by `source_id`, `name`, and `source_url`, take the first
+as the primary record, and derive a stable 16-character `model_id` from the key plus a display
+`slug` from the name. Records that do not share a canonical key stay separate.
 
-1. Curated alias from `data/aliases.yaml`.
-2. Exact normalized source key.
-3. Declared base-model lineage.
-4. Structural fingerprint, including architecture and tokenizer identity.
-5. RapidFuzz score of at least 92 with identical parameter and variant tuples.
-6. Otherwise keep a separate unresolved identity.
-
-Fuzzy names alone never merge models. Base models are roots; quantizations, adapters, LoRAs, and
-merges are variants by default. Preserve the evidence and rule used for each identity decision in
-the snapshot.
+Names alone never merge models. Base models are roots; quantizations, adapters, LoRAs, and merges
+are variants by default. Preserve the evidence used for each merged field in `provenance` and
+`field_provenance`.
 
 ### 9.3 Canonical Fields
 
@@ -412,12 +383,12 @@ JSON. Keep plain JSON as the default until compression is necessary.
 
 ## 11. Views and Surfaces
 
-Validate `views.yaml` into typed `ViewSpec` values. Support allow-listed equality, membership,
-ranges, booleans, grouping, stable sorting, limits, and facets. Apply them to Polars frames; never
-accept SQL or arbitrary expressions.
+Views are built in `analysis.build_views` from the resolved model list: a fixed, code-defined set of
+primary decision views plus secondary metadata views. Ranking is pure and deterministic, with
+stable model-ID tie-breakers; no SQL or arbitrary expressions are accepted.
 
-Each view stores its ordered model IDs and display annotations in the snapshot. Both surfaces use
-those results rather than rerunning ranking logic.
+Each view stores its ordered model IDs and display annotations in the snapshot. Both the HTML
+report and the TUI use those results rather than rerunning ranking logic.
 
 ### 11.1 HTML
 
@@ -470,13 +441,14 @@ release during analysis; it is used only for the generated change summary.
 | `model-radar render --snapshot PATH` | Re-render HTML from an existing compatible snapshot |
 | `model-radar top` | Open the current snapshot in the TUI |
 | `model-radar top --snapshot PATH` | Open a selected snapshot |
-| `model-radar inspect MODEL_ID` | Print one model and provenance from a snapshot |
-| `model-radar validate PATH` | Validate snapshot or release integrity |
-| `model-radar sources` | List enabled sources and required/optional status |
+| `model-radar inspect [MODEL_ID]` | Print the full snapshot, or one model and its provenance |
+| `model-radar validate PATH` | Validate a snapshot file |
+| `model-radar sources --config PATH` | List enabled sources and required/optional status |
 
-`model-radar run` supports `--config`, `--output`, `--generated-at`, `--source`, `--no-publish`, and
-`--log-format`. `--generated-at` exists for deterministic tests and controlled reproduction, not
-incremental replay.
+`model-radar run` supports `--config`, `--output`, `--generated-at`, `--source`, and `--no-publish`.
+`--generated-at` exists for deterministic tests and controlled reproduction, not incremental replay.
+When `MODEL_ID` is omitted, `inspect` prints the whole snapshot; otherwise it matches the first of
+`model_id`, `slug`, or `name` and exits `4` if nothing matches.
 
 | Code | Meaning |
 |---:|---|
@@ -583,7 +555,7 @@ Security requirements:
 | Snapshot | Pydantic and JSON Schema round-trip compatibility |
 | Publication | Failure injection before every write/rename leaves current intact |
 | Source matrix | Required failure aborts; allowed optional failure publishes degraded |
-| HTML | Golden, CSP, XSS, accessibility, size, and zero-network Playwright tests |
+| HTML | CSP, XSS, size, and accessibility checks over the rendered file |
 | TUI | Snapshots at 80x24, 120x40, and 200x60; ASCII/no-color support |
 | Parity | HTML and TUI display identical values and view order |
 | Performance | Full fixture run remains within time and peak-memory budgets |
@@ -604,7 +576,7 @@ without changes, and renders a minimal HTML page and TUI table.
 ### Phase 2: Fetch and Normalize
 
 Implement the shared bounded HTTP client, complete pagination, Hugging Face and OpenRouter
-connectors, source summaries, and explicit Polars schemas.
+connectors, source summaries, and typed record contracts.
 
 **Done when:** recorded fixtures fetch all pages; repeated cursors fail; required/optional failure
 semantics pass; no source data survives process exit except in the final snapshot.

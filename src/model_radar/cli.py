@@ -1,16 +1,22 @@
 from __future__ import annotations
 
+import json
 import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated
 
-import click
 import typer
 from rich.console import Console
 
+try:
+    from typer._click.exceptions import UsageError as _UsageError
+except ImportError:  # pragma: no cover - fallback for unvendored typer
+    from click.exceptions import UsageError as _UsageError  # type: ignore[assignment]
+
 from model_radar.codec import parse_snapshot
 from model_radar.config import ConfigError, load_config
+from model_radar.models import ModelRecord, Snapshot
 from model_radar.pipeline import load_published_snapshot, run_pipeline
 from model_radar.publisher import PublicationError, PublicationLockError, Publisher
 from model_radar.source import RequiredSourceError
@@ -102,15 +108,53 @@ def render(
         raise typer.Exit(code=4) from exc
 
 
+def _find_models(snapshot: Snapshot, key: str) -> list[ModelRecord]:
+    for attribute in ("model_id", "slug", "name"):
+        matches = [model for model in snapshot.models if getattr(model, attribute) == key]
+        if matches:
+            return matches
+    return []
+
+
 @app.command()
-def inspect(output: Annotated[Path, typer.Option("--output")] = Path("out")) -> None:
-    snapshot = load_published_snapshot(output)
-    console.print(snapshot.model_dump_json(indent=2))
+def inspect(
+    model_id: Annotated[str | None, typer.Argument()] = None,
+    output: Annotated[Path, typer.Option("--output")] = Path("out"),
+) -> None:
+    try:
+        snapshot = load_published_snapshot(output)
+    except (OSError, ValueError) as exc:
+        console.print(str(exc), style="red")
+        raise typer.Exit(code=4) from exc
+    if model_id is None:
+        console.print(snapshot.model_dump_json(indent=2))
+        return
+    matches = _find_models(snapshot, model_id)
+    if not matches:
+        console.print(f"model not found: {model_id}", style="red")
+        raise typer.Exit(code=4)
+    for index, model in enumerate(matches):
+        if index:
+            console.print()
+        console.print(
+            json.dumps(
+                {
+                    "model": model.model_dump(mode="json"),
+                    "provenance": model.provenance,
+                    "field_provenance": model.field_provenance,
+                },
+                indent=2,
+            )
+        )
 
 
 @app.command()
 def sources(config: Annotated[Path, typer.Option(..., "--config")]) -> None:
-    settings = load_config(config)
+    try:
+        settings = load_config(config)
+    except ConfigError as exc:
+        console.print(str(exc), style="red")
+        raise typer.Exit(code=78) from exc
     for source in settings.sources:
         console.print(
             f"{source.name}: {source.kind} required={source.required} enabled={source.enabled}"
@@ -119,7 +163,9 @@ def sources(config: Annotated[Path, typer.Option(..., "--config")]) -> None:
 
 def main() -> None:
     try:
-        app(standalone_mode=False)
-    except click.exceptions.UsageError as exc:
+        result = app(standalone_mode=False)
+    except _UsageError as exc:
         console.print(str(exc), style="red")
         raise SystemExit(64) from exc
+    if isinstance(result, int) and result != 0:
+        raise SystemExit(result)

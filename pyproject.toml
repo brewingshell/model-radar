@@ -1,38 +1,41 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "model-radar"
 version = "0.1.0"
-description = "Snapshot-only current-state model analysis"
+description = "Snapshot-only model landscape analysis with a self-contained HTML report"
 readme = "README.md"
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.13"
+authors = [{ name = "BrewingShell", email = "nikolche.kolevski@gmail.com" }]
+keywords = ["llm", "benchmarks", "leaderboard", "artificial-analysis", "huggingface"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Typing :: Typed",
+]
 dependencies = [
   "httpx>=0.27",
   "tenacity>=8.2",
   "pydantic>=2.7",
-  "pydantic-settings>=2.2",
-  "polars>=1.0",
-  "rapidfuzz>=3.9",
   "click>=8.1",
   "typer>=0.12",
   "rich>=13.7",
   "jinja2>=3.1",
   "textual>=0.60",
   "ruamel.yaml>=0.18",
-  "feedparser>=6.0",
   "beautifulsoup4>=4.12",
 ]
 
 [project.optional-dependencies]
 dev = [
   "pytest>=8.0",
-  "pytest-asyncio>=0.23",
-  "respx>=0.21",
-  "hypothesis>=6.100",
-  "playwright>=1.45",
   "ruff>=0.5",
   "mypy>=1.10",
 ]
@@ -40,8 +43,16 @@ dev = [
 [project.scripts]
 model-radar = "model_radar.cli:main"
 
+[project.urls]
+Homepage = "https://github.com/brewingshell/model-radar"
+Repository = "https://github.com/brewingshell/model-radar"
+Issues = "https://github.com/brewingshell/model-radar/issues"
+
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+model_radar = ["py.typed"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

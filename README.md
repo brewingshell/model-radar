@@ -1,6 +1,6 @@
 # Model Radar
 
-Model Radar is a snapshot-only model landscape tool. `solution.md` is authoritative for the implementation boundary and `model-radar.md` is the product contract.
+Model Radar is a snapshot-only model landscape tool. `model-radar.md` is the product contract and `solution.md` the implementation design; where those documents describe unshipped work, this README and the code reflect current behavior.
 
 A `model-radar run` invocation fetches the enabled current-state sources, validates and normalizes records in memory, resolves identities, computes deterministic current scores, renders a self-contained HTML report, and atomically publishes:
 
@@ -73,7 +73,7 @@ To make output reproducible, pass an explicit timestamp:
 python3 -m model_radar run --config config/fixture.yaml --source fixture --generated-at 2026-09-18T00:00:00+00:00
 ```
 
-Useful commands include `model-radar validate`, `model-radar inspect`, and `model-radar sources`. Exit codes are `0` complete, `3` degraded optional source, `4` analysis/render/publication failure, `64` usage, `69` required source failure, `75` publication lock, and `78` configuration failure.
+Useful commands include `model-radar validate`, `model-radar inspect [MODEL_ID]`, and `model-radar sources`. Exit codes are `0` complete, `3` degraded optional source, `4` analysis/render/publication failure, `64` usage, `69` required source failure, `75` publication lock, and `78` configuration failure.
 
 Artificial Analysis Intelligence Index is the authoritative performance metric. Its cost field is
 cost per benchmark task and is reported separately. The second primary view uses Artificial
@@ -127,5 +127,7 @@ The scheduled workflow does not create commits. To keep the What's New compariso
 history working across runs, the workflow restores the previous `snapshot.json` and `history/`
 directory from the Actions cache before generating and saves the updated copy afterward. A failed
 required source or validation step stops deployment before the cache is saved, leaving both the
-previous Pages artifact and the last good history available. GitHub schedules are approximate and
-may be delayed; the manual dispatch is available for an immediate refresh.
+previous Pages artifact and the last good history available. On failure, the workflow opens or
+updates a `Model Radar daily publish failed` issue so a broken source is not silent. GitHub
+schedules are approximate and may be delayed; the manual dispatch is available for an immediate
+refresh.
