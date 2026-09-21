@@ -1,6 +1,12 @@
 from datetime import UTC, datetime
 
-from model_radar.analysis import apply_copilot_catalog, attach_benchmarks, build_views, normalize
+from model_radar.analysis import (
+    _benchmark_family_key,
+    apply_copilot_catalog,
+    attach_benchmarks,
+    build_views,
+    normalize,
+)
 from model_radar.models import CopilotConfig, CopilotModelConfig, RawRecord
 
 
@@ -490,3 +496,145 @@ def test_benchmark_sources_merge_without_touching_aa_score():
     assert enriched[0].benchmark_coverage == 2
     assert enriched[0].intelligence_index == 53
     assert enriched[0].scores["merged_benchmark_index"].provisional is True
+
+
+def test_benchmark_family_key_aligns_slugs_with_display_names():
+    assert _benchmark_family_key("claude-opus-4-6-thinking-auto-high-effort") == (
+        _benchmark_family_key("Anthropic: Claude Opus 4.6")
+    )
+    assert _benchmark_family_key("gpt-5.2-2025-12-11-high") == _benchmark_family_key(
+        "OpenAI: GPT-5.2"
+    )
+    assert _benchmark_family_key("deepseek-v4-flash-0731") == _benchmark_family_key(
+        "DeepSeek V4 Flash 0731 (max)"
+    )
+    assert _benchmark_family_key("glm-5.2") == _benchmark_family_key("zai-org/GLM-5.2")
+    assert _benchmark_family_key("claude-fable-5-1-max-effort") == _benchmark_family_key(
+        "Claude Fable 5.1 (max with fallback)"
+    )
+
+
+def test_benchmark_family_key_keeps_distinct_models_apart():
+    assert _benchmark_family_key("OpenAI: GPT-5.2") != _benchmark_family_key("OpenAI: GPT-5.2 Pro")
+    assert _benchmark_family_key("Claude Opus 5") != _benchmark_family_key("Claude Opus 4.5")
+    assert _benchmark_family_key("Kimi K3 (max)") != _benchmark_family_key("Kimi K2.7 Code")
+
+
+def test_livebench_prefers_artificial_analysis_and_exact_effort():
+    models = normalize(
+        [
+            RawRecord(
+                source_id="aa/claude-opus-5-max",
+                name="Claude Opus 5 (max)",
+                intelligence_index=80.0,
+                provenance=["artificial-analysis"],
+            ),
+            RawRecord(
+                source_id="openrouter/anthropic/claude-opus-5",
+                name="Anthropic: Claude Opus 5",
+                provenance=["openrouter"],
+            ),
+        ]
+    )
+    benchmarks = [
+        RawRecord(
+            source_id="livebench:claude-opus-5-max-effort",
+            name="claude-opus-5-max-effort",
+            benchmark_source="livebench",
+            benchmark_release="2026-06-25",
+            benchmark_index=81.5,
+            benchmark_effort="max",
+            provenance=["livebench"],
+        )
+    ]
+
+    enriched = {model.name: model for model in attach_benchmarks(models, benchmarks)}
+
+    assert enriched["Claude Opus 5 (max)"].livebench_index == 81.5
+    assert enriched["Anthropic: Claude Opus 5"].livebench_index is None
+
+
+def test_livebench_without_effort_targets_flagship_variant():
+    models = normalize(
+        [
+            RawRecord(
+                source_id="aa/kimi-k3-max",
+                name="Kimi K3 (max)",
+                intelligence_index=79.0,
+                provenance=["artificial-analysis"],
+            ),
+            RawRecord(
+                source_id="aa/kimi-k3-low",
+                name="Kimi K3 (low)",
+                intelligence_index=55.0,
+                provenance=["artificial-analysis"],
+            ),
+        ]
+    )
+    benchmarks = [
+        RawRecord(
+            source_id="livebench:kimi-k3",
+            name="kimi-k3",
+            benchmark_source="livebench",
+            benchmark_index=70.0,
+            provenance=["livebench"],
+        )
+    ]
+
+    enriched = {model.name: model for model in attach_benchmarks(models, benchmarks)}
+
+    assert enriched["Kimi K3 (max)"].livebench_index == 70.0
+    assert enriched["Kimi K3 (low)"].livebench_index is None
+
+
+def test_livebench_absent_model_is_not_force_matched():
+    models = normalize(
+        [
+            RawRecord(
+                source_id="aa/glm-5-3",
+                name="GLM-5.3",
+                intelligence_index=70.0,
+                provenance=["artificial-analysis"],
+            )
+        ]
+    )
+    benchmarks = [
+        RawRecord(
+            source_id="livebench:smaug-agentic",
+            name="smaug-agentic",
+            benchmark_source="livebench",
+            benchmark_index=79.0,
+            provenance=["livebench"],
+        )
+    ]
+
+    enriched = attach_benchmarks(models, benchmarks)
+
+    assert enriched[0].livebench_index is None
+
+
+def test_livebench_slug_with_date_matches_catalog_display_name():
+    models = normalize(
+        [
+            RawRecord(
+                source_id="openrouter/openai/gpt-5-2",
+                name="OpenAI: GPT-5.2",
+                provenance=["openrouter"],
+            )
+        ]
+    )
+    benchmarks = [
+        RawRecord(
+            source_id="livebench:gpt-5.2-2025-12-11-high",
+            name="gpt-5.2-2025-12-11-high",
+            benchmark_source="livebench",
+            benchmark_index=75.19,
+            benchmark_effort="high",
+            provenance=["livebench"],
+        )
+    ]
+
+    enriched = attach_benchmarks(models, benchmarks)
+
+    assert enriched[0].livebench_index == 75.19
+    assert enriched[0].effort_level == "high"

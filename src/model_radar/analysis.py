@@ -191,24 +191,51 @@ def _copilot_coverage_match(
     return None
 
 
+def _select_benchmark_target(
+    candidates: list[ModelRecord], benchmark_effort: str | None
+) -> ModelRecord | None:
+    """Pick the single model a benchmark row belongs to, deterministically.
+
+    Artificial Analysis records carry the performance view and split models by
+    effort level, so they are preferred over catalog duplicates from other
+    sources. Within a family the exact effort wins; a variant with no declared
+    effort is next; otherwise the flagship (highest Intelligence Index) is used.
+    """
+    if not candidates:
+        return None
+    analysis = [model for model in candidates if "artificial-analysis" in model.provenance]
+    pool = analysis or candidates
+    if benchmark_effort:
+        exact = [model for model in pool if model.effort_level == benchmark_effort]
+        if exact:
+            pool = exact
+    if len(pool) == 1:
+        return pool[0]
+    no_effort = [model for model in pool if model.effort_level is None]
+    if no_effort:
+        pool = no_effort
+    return max(
+        pool,
+        key=lambda model: (
+            model.intelligence_index is not None,
+            model.intelligence_index or 0.0,
+            model.name.casefold(),
+            model.model_id,
+        ),
+    )
+
+
 def attach_benchmarks(
     models: list[ModelRecord], benchmark_records: Iterable[RawRecord]
 ) -> list[ModelRecord]:
     for record in benchmark_records:
-        candidates = [
-            model
-            for model in models
-            if _benchmark_family_key(model.name) == _benchmark_family_key(record.name)
-        ]
-        if record.benchmark_effort:
-            effort_candidates = [
-                model for model in candidates if model.effort_level == record.benchmark_effort
-            ]
-            if effort_candidates:
-                candidates = effort_candidates
-        if len(candidates) != 1:
+        key = _benchmark_family_key(record.name)
+        if not key:
             continue
-        model = candidates[0]
+        candidates = [model for model in models if _benchmark_family_key(model.name) == key]
+        model = _select_benchmark_target(candidates, record.benchmark_effort)
+        if model is None:
+            continue
         field = {
             "livebench": "livebench_index",
             "evalplus": "evalplus_index",
@@ -217,7 +244,7 @@ def attach_benchmarks(
         if field is None:
             continue
         values = {field: record.benchmark_index, "benchmark_release": record.benchmark_release}
-        if record.benchmark_effort:
+        if record.benchmark_effort and model.effort_level is None:
             values["effort_level"] = record.benchmark_effort
         if record.benchmark_cost_per_task is not None:
             values["benchmark_cost_per_task"] = record.benchmark_cost_per_task
@@ -752,16 +779,34 @@ def _model_family_key(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", value).strip("-")
 
 
+_BENCHMARK_NOISE = re.compile(
+    r"\b(?:max|xhigh|high|medium|low|non[- ]reasoning|reasoning|open|thinking|effort|auto)\b"
+)
+_BENCHMARK_DATE_PATTERNS = (
+    re.compile(r"\b(?:19|20)\d{2}[-/.]\d{1,2}[-/.]\d{1,2}\b"),
+    re.compile(r"\b(?:19|20)\d{6}\b"),
+    re.compile(r"\b(?:sept|oct|nov|dec|jan|feb|mar|apr|may|jun|jul|aug)\w*\s+\d{4}\b"),
+    re.compile(r"(?<=[- ])0\d{3}(?=$|[- ])"),
+    re.compile(r"(?<=[- ])\d{1,3}k(?=$|[- ])"),
+)
+
+
 def _benchmark_family_key(name: str) -> str:
+    """Normalise a display name or slug so benchmark rows match model rows.
+
+    LiveBench publishes slugs such as ``claude-opus-4-6-thinking-auto-high-effort``
+    while Artificial Analysis publishes display names such as
+    ``Claude Opus 4.6 (max)``. Strip organisation prefixes, effort/thinking
+    markers, context-window sizes, and date stamps so both sides collapse to the
+    same family key.
+    """
     value = name.casefold()
-    value = re.sub(r"\s*\([^)]*\)", "", value)
-    value = re.sub(r"\s*\[[^]]*\]", "", value)
-    value = re.sub(
-        r"\b(?:max|xhigh|high|medium|low|non[- ]reasoning|open|reasoning|effort)\b", "", value
-    )
-    value = re.sub(
-        r"\b(?:sept|oct|nov|dec|jan|feb|mar|apr|may|jun|jul|aug)\w*\s+\d{4}\b", "", value
-    )
+    value = value.split("/", 1)[-1]
+    value = value.split(":", 1)[-1]
+    value = re.sub(r"[\[(][^\])]*[\])]", " ", value)
+    for pattern in _BENCHMARK_DATE_PATTERNS:
+        value = pattern.sub(" ", value)
+    value = _BENCHMARK_NOISE.sub(" ", value)
     return re.sub(r"[^a-z0-9]+", "-", value).strip("-")
 
 

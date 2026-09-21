@@ -102,8 +102,10 @@ snapshot so the permanent HTML remains self-contained. `config/org.json` control
 Copilot catalog, including the covered family and level for each model.
 
 The report enriches the existing decision tabs with a separate LiveBench column. LiveBench is
-matched to model+thinking variants without replacing Artificial Analysis. EvalPlus and DeepSWE
-are not active report sources.
+matched to model+thinking variants without replacing Artificial Analysis. Its Overall score is the
+mean of the published category averages, and slugs such as `claude-opus-4-6-thinking-auto-high-effort`
+are normalised to match Artificial Analysis display names. EvalPlus and DeepSWE are not active
+report sources.
 
 ## Test
 

@@ -106,6 +106,32 @@ def test_livebench_and_evalplus_parse_normalized_indexes():
     assert eval_record.benchmark_index == 85.0
 
 
+def test_livebench_overall_is_mean_of_category_averages():
+    client = MultiTextClient(
+        {
+            "https://live/table_2026_06_25.csv": (
+                "model,r1,r2,r3,c1\ngpt-6-astra-max,90,90,90,30\n"
+            ),
+            "https://live/categories_2026_06_25.json": (
+                '{"Reasoning":["r1","r2","r3"],"Coding":["c1"]}'
+            ),
+            "https://live/cost_2026_06_25.csv": "model,cost_per_successful_task\n",
+        }
+    )
+    connector = LiveBenchConnector(
+        SourceConfig(
+            name="livebench", kind="livebench", base_url="https://live", endpoint="2026-06-25"
+        ),
+        client=client,
+    )
+
+    record = asyncio.run(connector.page(None)).records[0]
+
+    assert record.benchmark_index == 60.0
+    assert record.benchmark_components == {"Reasoning": 90.0, "Coding": 30.0}
+    assert record.benchmark_effort == "max"
+
+
 def test_deepswe_parses_effort_pass_rate_and_cost():
     client = HtmlClient(
         """

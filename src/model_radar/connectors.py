@@ -539,15 +539,24 @@ class LiveBenchConnector:
         cost_text = await self.client.get_text(f"{self.base_url}/cost_{suffix}.csv")
         rows = list(csv.DictReader(io.StringIO(table_text)))
         cost_rows = {row.get("model"): row for row in csv.DictReader(io.StringIO(cost_text))}
-        category_columns = [column for values in category_payload.values() for column in values]
+        if not isinstance(category_payload, dict) or not category_payload:
+            raise ConnectorError("schema", "LiveBench categories payload is not a mapping")
         records = []
         for row in rows:
-            scores: list[float] = []
-            for column in category_columns:
-                score = _number(str(row.get(column, "")))
-                if score is not None:
-                    scores.append(score)
-            if not scores:
+            # LiveBench's published "Overall" score is the mean of the per-category
+            # averages, where each category average is a plain mean of its tasks.
+            category_scores: dict[str, float] = {}
+            for category, columns in category_payload.items():
+                if not isinstance(columns, list):
+                    continue
+                values = [
+                    score
+                    for column in columns
+                    if (score := _number(str(row.get(str(column), "")))) is not None
+                ]
+                if values:
+                    category_scores[str(category)] = sum(values) / len(values)
+            if not category_scores:
                 continue
             cost_row = cost_rows.get(row.get("model"), {})
             records.append(
@@ -557,12 +566,10 @@ class LiveBenchConnector:
                     source_url=self.base_url,
                     benchmark_source=self.config.name,
                     benchmark_release=release,
-                    benchmark_index=round(sum(scores) / len(scores), 4),
+                    benchmark_index=round(sum(category_scores.values()) / len(category_scores), 2),
                     benchmark_effort=_benchmark_effort(row["model"]),
                     benchmark_components={
-                        key: score
-                        for key in category_columns
-                        if (score := _number(str(row.get(key, "")))) is not None
+                        category: round(value, 4) for category, value in category_scores.items()
                     },
                     benchmark_cost_per_task=_number(
                         str(cost_row.get("cost_per_successful_task", ""))
