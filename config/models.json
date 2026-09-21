@@ -7,19 +7,11 @@
       "performance-per-token-top5",
       "meaningful-new-hf-top5"
     ],
-    "text-to-image": [
+    "image": [
       "performance-top5",
       "meaningful-new-hf-top5"
     ],
-    "image-to-image": [
-      "performance-top5",
-      "meaningful-new-hf-top5"
-    ],
-    "text-to-video": [
-      "performance-top5",
-      "meaningful-new-hf-top5"
-    ],
-    "image-to-video": [
+    "video": [
       "performance-top5",
       "meaningful-new-hf-top5"
     ]

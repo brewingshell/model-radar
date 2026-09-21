@@ -127,7 +127,10 @@ document.getElementById('theme-toggle')?.addEventListener('click',function(){
     applyTheme(theme);
 });
 function applyDecisionFilters(){
-    var type=document.getElementById('decision-modality')?.value||'llm';
+    var select=document.getElementById('decision-modality');
+    var type=select?.value||'llm';
+    var option=select&&select.selectedOptions?select.selectedOptions[0]:null;
+    var allowedCategories=(option&&option.dataset.categories?option.dataset.categories:type).split(',');
     var openOnly=document.getElementById('decision-open-weight')?.checked||false;
     var tabInputs=Array.from(document.querySelectorAll('.tab-input'));
     tabInputs.forEach(function(input){
@@ -144,9 +147,11 @@ function applyDecisionFilters(){
         if(firstAllowed)firstAllowed.checked=true;
     }
     document.querySelectorAll('.ranking-card').forEach(function(panel){
+        var selectedTables=[];
         panel.querySelectorAll('.decision-table').forEach(function(table){
-            var selected=table.dataset.modelTable===type;
+            var selected=allowedCategories.indexOf(table.dataset.modelTable)>=0;
             table.hidden=!selected;
+            if(selected)selectedTables.push(table);
             var rows=Array.from(table.querySelectorAll('.decision-row'));
             var count=0;
             rows.forEach(function(row){
@@ -160,11 +165,11 @@ function applyDecisionFilters(){
                 if(rank)rank.textContent=String(index+1);
             });
         });
-        var selectedTable=panel.querySelector('.decision-table[data-model-table="'+type+'"]');
         var empty=panel.querySelector('.filter-empty');
         if(empty){
-            var selectedRows=selectedTable?selectedTable.querySelectorAll('.decision-row:not([hidden])'):[];
-            empty.style.display=selectedTable&&selectedTable.querySelectorAll('.decision-row').length&&!selectedRows.length?'block':'none';
+            var hasRows=selectedTables.some(function(table){return table.querySelectorAll('.decision-row').length;});
+            var visibleRows=selectedTables.reduce(function(total,table){return total+table.querySelectorAll('.decision-row:not([hidden])').length;},0);
+            empty.style.display=hasRows&&!visibleRows?'block':'none';
         }
     });
 }
@@ -212,7 +217,7 @@ _TEMPLATE = """<!doctype html>
 <div class="decision-filters" aria-label="Decision view filters">
 <label class="filter-field" for="decision-modality">Model type
 <select class="filter-select" id="decision-modality">
-<option value="llm" selected>LLM</option><option value="text-to-image">Text to image</option><option value="image-to-image">Image to image</option><option value="text-to-video">Text to video</option><option value="image-to-video">Image to video</option>
+{% for group in model_type_groups(model_type_tabs) %}<option value="{{ group }}" data-categories="{{ model_type_group_categories(group)|join(',') }}"{% if loop.first %} selected{% endif %}>{{ model_type_group_label(group) }}</option>{% endfor %}
 </select></label>
 <label class="filter-check"><input id="decision-open-weight" type="checkbox"> Open-weight only</label>
 </div>
@@ -307,13 +312,58 @@ _MODEL_TYPE_LABELS = {
     "image-to-video": "Image to video",
 }
 
+_MODEL_TYPE_GROUPS = {
+    "llm": ("llm",),
+    "image": ("text-to-image", "image-to-image"),
+    "video": ("text-to-video", "image-to-video"),
+}
+
+_MODEL_TYPE_GROUP_LABELS = {
+    "llm": "LLM",
+    "image": "Image",
+    "video": "Video",
+}
+
 _DEFAULT_MODEL_TYPE_TABS = {
     "llm": list(_PRIMARY_VIEW_IDS),
-    "text-to-image": ["performance-top5", "meaningful-new-hf-top5"],
-    "image-to-image": ["performance-top5"],
-    "text-to-video": ["performance-top5"],
-    "image-to-video": ["performance-top5"],
+    "image": ["performance-top5", "meaningful-new-hf-top5"],
+    "video": ["performance-top5", "meaningful-new-hf-top5"],
 }
+
+
+def _group_for_key(key: str) -> str:
+    if key in _MODEL_TYPE_GROUPS:
+        return key
+    for group, categories in _MODEL_TYPE_GROUPS.items():
+        if key in categories:
+            return group
+    return key
+
+
+def normalise_model_type_tabs(model_type_tabs: dict[str, list[str]]) -> dict[str, list[str]]:
+    raw = model_type_tabs or _DEFAULT_MODEL_TYPE_TABS
+    grouped: dict[str, list[str]] = {}
+    for key, tabs in raw.items():
+        bucket = grouped.setdefault(_group_for_key(key), [])
+        for tab in tabs:
+            if tab not in bucket:
+                bucket.append(tab)
+    ordered = {group: grouped[group] for group in _MODEL_TYPE_GROUP_LABELS if group in grouped}
+    for group, tabs in grouped.items():
+        ordered.setdefault(group, tabs)
+    return ordered
+
+
+def model_type_groups(model_type_tabs: dict[str, list[str]]) -> list[str]:
+    return list(normalise_model_type_tabs(model_type_tabs))
+
+
+def model_type_group_label(group: str) -> str:
+    return _MODEL_TYPE_GROUP_LABELS.get(group, group)
+
+
+def model_type_group_categories(group: str) -> list[str]:
+    return list(_MODEL_TYPE_GROUPS.get(group, (group,)))
 
 
 def _model_type_catalog(models: list[ModelRecord]) -> dict[str, list[ModelRecord]]:
@@ -357,9 +407,9 @@ def model_type_label(category: str) -> str:
 
 
 def view_model_types(view_id: str, model_type_tabs: dict[str, list[str]]) -> list[str]:
-    configured = model_type_tabs or _DEFAULT_MODEL_TYPE_TABS
-    allowed = [category for category, tabs in configured.items() if view_id in tabs]
-    return allowed or list(_MODEL_TYPE_LABELS)
+    groups = normalise_model_type_tabs(model_type_tabs)
+    allowed = [group for group, tabs in groups.items() if view_id in tabs]
+    return allowed or list(groups)
 
 
 def decision_models(
@@ -411,6 +461,9 @@ def render_html(snapshot: Snapshot) -> bytes:
             decision_models_by_type=decision_models_by_type,
             model_type_tabs=snapshot.summary.get("model_type_tabs", _DEFAULT_MODEL_TYPE_TABS),
             view_model_types=view_model_types,
+            model_type_groups=model_type_groups,
+            model_type_group_label=model_type_group_label,
+            model_type_group_categories=model_type_group_categories,
         )
         .encode("utf-8")
     )

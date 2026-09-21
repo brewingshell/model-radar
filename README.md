@@ -80,7 +80,9 @@ cost per benchmark task and is reported separately. The second primary view uses
 Analysis input/output USD per 1M tokens, weighted as `(3 * input + output) / 4`, and ranks
 `intelligence_index / weighted_token_price`; it must not be confused with benchmark-task cost.
 The image and video tabs use the modality-specific Artificial Analysis Elo rankings and display
-their API costs separately from LLM token pricing.
+their API costs separately from LLM token pricing. The model-type filter offers three options: LLM,
+Image, and Video. Image covers the text-to-image and image-to-image leaderboards, and Video covers
+text-to-video and image-to-video, so each modality family is reachable under a single selection.
 The meaningful-new Hugging Face view uses
 source `createdAt`/`lastModified` plus a transparent adoption heuristic; OpenRouter remains an
 optional secondary metadata source. A failed required AA source leaves the primary performance

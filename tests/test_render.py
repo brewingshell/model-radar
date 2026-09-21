@@ -2,7 +2,14 @@ from datetime import UTC, datetime
 
 from model_radar.analysis import attach_benchmarks, build_views, normalize
 from model_radar.models import RawRecord, Snapshot
-from model_radar.render import model_type, render_html
+from model_radar.render import (
+    model_type,
+    model_type_group_categories,
+    model_type_groups,
+    normalise_model_type_tabs,
+    render_html,
+    view_model_types,
+)
 
 
 def test_html_escapes_untrusted_model_fields():
@@ -187,8 +194,19 @@ def test_decision_filters_render_model_types_and_open_weight_metadata():
     html = render_html(snapshot).decode("utf-8")
 
     assert '<select class="filter-select" id="decision-modality">' in html
-    assert '<option value="llm" selected>LLM</option>' in html
-    assert '<option value="text-to-image">Text to image</option>' in html
+    assert '<option value="llm" data-categories="llm" selected>LLM</option>' in html
+    assert (
+        '<option value="image" data-categories="text-to-image,image-to-image">Image</option>'
+        in html
+    )
+    assert (
+        '<option value="video" data-categories="text-to-video,image-to-video">Video</option>'
+        in html
+    )
+    assert 'data-model-table="text-to-image"' in html
+    assert 'data-model-table="image-to-image"' in html
+    assert 'data-model-table="text-to-video"' in html
+    assert 'data-model-table="image-to-video"' in html
     assert 'id="decision-open-weight"' in html
     assert 'data-model-type="llm" data-open-weight="true"' in html
     assert 'data-model-type="text-to-image" data-open-weight="false"' in html
@@ -204,6 +222,36 @@ def test_decision_filters_render_model_types_and_open_weight_metadata():
     assert model_type(by_name["Atlas"]) == "llm"
     assert model_type(by_name["Pixel"]) == "text-to-image"
     assert model_type(by_name["Motion"]) == "image-to-video"
+
+
+def test_image_and_video_modalities_share_one_select_option_each():
+    groups = {
+        "llm": ["org-copilot-best-top10", "performance-top5"],
+        "image": ["performance-top5"],
+        "video": ["performance-top5"],
+    }
+
+    assert model_type_groups(groups) == ["llm", "image", "video"]
+    assert model_type_group_categories("image") == ["text-to-image", "image-to-image"]
+    assert model_type_group_categories("video") == ["text-to-video", "image-to-video"]
+    assert view_model_types("performance-top5", groups) == ["llm", "image", "video"]
+    assert view_model_types("org-copilot-best-top10", groups) == ["llm"]
+
+
+def test_legacy_per_modality_keys_are_normalised_into_groups():
+    legacy = {
+        "llm": ["performance-top5"],
+        "text-to-image": ["performance-top5"],
+        "image-to-image": ["meaningful-new-hf-top5"],
+        "text-to-video": ["performance-top5"],
+        "image-to-video": ["performance-top5"],
+    }
+
+    normalised = normalise_model_type_tabs(legacy)
+
+    assert list(normalised) == ["llm", "image", "video"]
+    assert normalised["image"] == ["performance-top5", "meaningful-new-hf-top5"]
+    assert normalised["video"] == ["performance-top5"]
 
 
 def test_decision_views_retain_top_open_weight_candidates():
