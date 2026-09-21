@@ -29,6 +29,14 @@ _STYLE = (
     ".report-meta{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 18px;color:var(--muted);font-size:.8rem;font-weight:700}"
     ".theme-toggle{display:inline-grid;place-items:center;width:34px;height:34px;border:1px solid var(--line);border-radius:9px;background:var(--paper);color:var(--ink);font-size:1.05rem;cursor:pointer}"
     ".theme-toggle:hover{border-color:var(--teal);color:var(--teal)}"
+    ".highlights{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:0}"
+    ".highlight{display:flex;flex-direction:column;gap:2px;padding:16px 18px;border:1px solid var(--line);"
+    "border-radius:16px;background:var(--paper);box-shadow:var(--shadow);color:inherit;font:inherit;text-align:left;cursor:pointer}"
+    ".highlight:hover{border-color:var(--teal)}.highlight:focus-visible{outline:2px solid var(--teal);outline-offset:2px}"
+    ".highlight-label{color:var(--muted);font-size:.66rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase}"
+    ".highlight-model{margin-top:4px;color:var(--ink);font-size:1rem;font-weight:800;overflow-wrap:anywhere}"
+    ".highlight-value{color:var(--teal);font-size:1.4rem;font-weight:800;font-variant-numeric:tabular-nums}"
+    ".highlight-note{color:var(--muted);font-size:.72rem}"
     ".changes{padding-top:4px}.change-list{margin:10px 0 0;padding-left:20px;color:var(--muted);font-size:.88rem}"
     "section{margin:34px 0}section>header{display:flex;align-items:end;justify-content:space-between;gap:16px;margin-bottom:14px}"
     "h2{margin:0;color:var(--navy);font-size:1.35rem;letter-spacing:-.02em}h3{margin:0;color:var(--navy);font-size:1.05rem}"
@@ -178,6 +186,18 @@ document.getElementById('decision-open-weight')?.addEventListener('change',apply
 document.querySelectorAll('.tab-input').forEach(function(input){
     input.addEventListener('change',applyDecisionFilters);
 });
+document.querySelectorAll('.highlight').forEach(function(card){
+    card.addEventListener('click',function(){
+        var index=card.dataset.gotoTab;
+        var input=document.getElementById('primary-tab-'+index);
+        if(!input)return;
+        var select=document.getElementById('decision-modality');
+        if(select)select.value='llm';
+        input.checked=true;
+        applyDecisionFilters();
+        document.getElementById('primary-panel-'+index)?.scrollIntoView({behavior:'smooth',block:'start'});
+    });
+});
 applyDecisionFilters();
 })();"""
 _SCRIPT_HASH = base64.b64encode(hashlib.sha256(_SCRIPT.encode("utf-8")).digest()).decode("ascii")
@@ -215,6 +235,18 @@ _TEMPLATE = """<!doctype html>
 <body data-theme="dark">
 <main class="page">
 <p class="report-meta"><span>{{ snapshot.status|title }} · Generated {{ format_date(snapshot.generated_at) }}</span><button class="theme-toggle" id="theme-toggle" type="button" aria-label="Use light theme" title="Use light theme">☼</button></p>
+{% if highlights %}
+<section class="highlights" aria-label="Top picks">
+{% for card in highlights %}
+<button type="button" class="highlight" data-goto-tab="{{ card.tab_index }}" aria-label="{{ card.label }}: {{ card.model.name }}, {{ card.value }}">
+<span class="highlight-label">{{ card.label }}</span>
+<span class="highlight-model">{{ card.model.name }}{% if card.model.open_weights is true %}<span class="open-weight-mark" title="Open weights" aria-label="Open weights">OW</span>{% endif %}</span>
+<span class="highlight-value">{{ card.value }}</span>
+<span class="highlight-note">{{ card.note }}</span>
+</button>
+{% endfor %}
+</section>
+{% endif %}
 {% if snapshot.changes.get('summary') %}<section class="changes"><header><div><h2>What's new</h2><p class="section-note">Since the previous retained snapshot.</p></div></header><ul class="change-list">{% for change in snapshot.changes.get('summary', []) %}<li>{{ change }}</li>{% endfor %}</ul></section>{% endif %}
 <section><header><div><h2>Decision views</h2><p class="section-note">Shortlists for choosing what deserves attention now.</p></div></header>
 <div class="decision-filters" aria-label="Decision view filters">
@@ -488,6 +520,55 @@ def primary_tabs(snapshot: Snapshot, model_type_tabs: dict[str, list[str]]) -> l
     return tabs
 
 
+_HIGHLIGHT_VIEWS = (
+    ("performance-top5", "Best power LLM", "AA Intelligence Index"),
+    (
+        "performance-per-token-top5",
+        "Best value per token",
+        "AA Intelligence per weighted USD per 1M tokens",
+    ),
+    ("tiny-llm-top10", "Best tiny LLM", "AA Intelligence Index at or below 8B parameters"),
+)
+
+
+@dataclass(frozen=True)
+class _Highlight:
+    label: str
+    note: str
+    value: str
+    model: ModelRecord
+    tab_index: int
+
+
+def _highlight_value(view_id: str, model: ModelRecord) -> str:
+    if view_id == "performance-per-token-top5":
+        score = model.scores.get("aa_token_dollar_efficiency")
+        return f"{score.value:.2f}" if score and score.value is not None else "unknown"
+    index = model.intelligence_index
+    return f"{index:g}" if index is not None else "unknown"
+
+
+def highlights(tabs: list[_PrimaryTab]) -> list[_Highlight]:
+    """Top LLM pick for each headline view, for the summary cards at the top."""
+    cards: list[_Highlight] = []
+    for view_id, label, note in _HIGHLIGHT_VIEWS:
+        for index, tab in enumerate(tabs):
+            if tab.view.view_id != view_id or tab.group != "llm" or not tab.models:
+                continue
+            model = tab.models[0]
+            cards.append(
+                _Highlight(
+                    label=label,
+                    note=note,
+                    value=_highlight_value(view_id, model),
+                    model=model,
+                    tab_index=index,
+                )
+            )
+            break
+    return cards
+
+
 def decision_models(
     view: object,
     model_by_id: dict[str, ModelRecord],
@@ -521,6 +602,7 @@ def render_html(snapshot: Snapshot) -> bytes:
     environment = Environment(loader=BaseLoader(), autoescape=select_autoescape(["html", "xml"]))
     environment.globals["safe_url"] = _safe_url
     model_type_tabs = snapshot.summary.get("model_type_tabs", _DEFAULT_MODEL_TYPE_TABS)
+    tabs = primary_tabs(snapshot, model_type_tabs)
     return (
         environment.from_string(_TEMPLATE)
         .render(
@@ -529,7 +611,8 @@ def render_html(snapshot: Snapshot) -> bytes:
             format_date=format_date,
             style=_STYLE,
             script=_SCRIPT,
-            primary_tabs=primary_tabs(snapshot, model_type_tabs),
+            primary_tabs=tabs,
+            highlights=highlights(tabs),
             model_type=model_type,
             model_type_tabs=model_type_tabs,
             view_model_types=view_model_types,

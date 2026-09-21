@@ -418,3 +418,47 @@ def test_tiny_and_on_device_tabs_render_for_llm():
     assert "Cactus-Compute/needle2" in html
     assert "K2 Horizon 7B" in html
     assert 'data-model-table="llm"' in html
+
+
+def test_highlight_cards_show_top_llm_picks():
+    models = normalize(
+        [
+            RawRecord(
+                source_id="aa/best",
+                name="Best Power",
+                intelligence_index=60.0,
+                provenance=["artificial-analysis"],
+            ),
+            RawRecord(
+                source_id="aa/tiny",
+                name="Tiny Star 4B",
+                intelligence_index=20.0,
+                provenance=["artificial-analysis"],
+            ),
+            RawRecord(
+                source_id="aa/value",
+                name="Value Star",
+                intelligence_index=40.0,
+                provenance=["artificial-analysis"],
+            ),
+        ]
+    )
+    snapshot = Snapshot(
+        snapshot_id="highlights",
+        generated_at=datetime(2026, 9, 21, tzinfo=UTC),
+        status="complete",
+        source_status=[],
+        models=models,
+        views=build_views(models),
+    )
+
+    html = render_html(snapshot).decode("utf-8")
+
+    assert 'class="highlights"' in html
+    assert "Best power LLM" in html
+    assert "Best value per token" in html
+    assert "Best tiny LLM" in html
+    assert "Best Power" in html
+    assert "Tiny Star 4B" in html
+    assert 'data-goto-tab="' in html
+    assert ".highlight:hover{border-color:var(--teal)}" in html

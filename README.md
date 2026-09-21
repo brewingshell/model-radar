@@ -91,6 +91,11 @@ source `createdAt`/`lastModified` plus a transparent adoption heuristic; OpenRou
 optional secondary metadata source. A failed required AA source leaves the primary performance
 views unavailable and prevents a production publication rather than substituting catalog metadata.
 
+The top of the report shows three summary cards: **Best power LLM** (top of the performance
+shortlist), **Best value per token** (top of the per-token efficiency shortlist), and **Best tiny
+LLM** (top of the tiny-model shortlist). Each card shows the model and its headline metric, and
+clicking it opens the matching decision tab.
+
 The LLM tabs also include two size-focused views. **Tiny LLM top 10** ranks models at or below
 8B total parameters by Artificial Analysis Intelligence Index. Parameter counts are parsed from
 model names because no source exposes a reliable size field. **On-device models top 10** covers
