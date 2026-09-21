@@ -312,3 +312,52 @@ def test_decision_tables_are_wrapped_for_horizontal_scroll():
     assert ".table-scroll{max-width:100%;overflow-x:auto" in html
     assert "nth-child(n+4)" not in html
     assert ".ranking-card{overflow:hidden}" not in html
+
+
+def test_modality_sub_tabs_render_image_edit_and_image_to_video():
+    models = normalize(
+        [
+            RawRecord(
+                source_id=f"aa/{category}-{index}",
+                name=f"{category} Model {index}",
+                capabilities=[category],
+                artificial_analysis_modality=category,
+                artificial_analysis_modality_elo=1200 - index,
+                provenance=["artificial-analysis"],
+            )
+            for category in ("text-to-image", "image-to-image", "text-to-video", "image-to-video")
+            for index in range(3)
+        ]
+    )
+    snapshot = Snapshot(
+        snapshot_id="modality",
+        generated_at=datetime(2026, 9, 21, tzinfo=UTC),
+        status="complete",
+        source_status=[],
+        models=models,
+        views=build_views(models),
+    )
+
+    html = render_html(snapshot).decode("utf-8")
+
+    assert '<div class="modality-tabs" id="decision-modality-tabs"' in html
+    assert 'aria-label="Modality" hidden>' in html
+    assert (
+        'class="modality-tab" data-category="text-to-image" data-group="image" aria-pressed="false">Text to image</button>'
+        in html
+    )
+    assert (
+        'class="modality-tab" data-category="image-to-image" data-group="image" aria-pressed="false">Image edit</button>'
+        in html
+    )
+    assert (
+        'class="modality-tab" data-category="text-to-video" data-group="video" aria-pressed="false">Text to video</button>'
+        in html
+    )
+    assert (
+        'class="modality-tab" data-category="image-to-video" data-group="video" aria-pressed="false">Image to video</button>'
+        in html
+    )
+    assert "decision-modality-tabs" in html
+    assert "dataset.modality" in html
+    assert ".modality-tabs[hidden],.modality-tab[hidden]{display:none}" in html

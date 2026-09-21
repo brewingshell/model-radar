@@ -40,6 +40,13 @@ _STYLE = (
     ".filter-select:hover{border-color:var(--teal);background:var(--hover)}"
     ".filter-check{display:inline-flex;align-items:center;gap:7px;color:var(--navy);font-size:.82rem;font-weight:750;cursor:pointer}"
     ".filter-check input{width:16px;height:16px;accent-color:var(--teal)}"
+    ".modality-tabs{display:flex;flex-wrap:wrap;gap:6px;width:max-content;max-width:100%;margin-top:10px;padding:6px;"
+    "border:1px solid var(--line);border-radius:12px;background:var(--paper)}"
+    ".modality-tabs[hidden],.modality-tab[hidden]{display:none}"
+    ".modality-tab{padding:8px 14px;border:0;border-radius:9px;background:transparent;color:var(--muted);"
+    "font:inherit;font-size:.8rem;font-weight:800;cursor:pointer}"
+    ".modality-tab:hover{background:var(--hover);color:var(--ink)}"
+    ".modality-tab[aria-pressed='true']{background:var(--teal);color:var(--on-accent)}"
     ".filter-empty{display:none;padding:14px;border-radius:12px;background:var(--surface-muted);color:var(--muted);font-size:.85rem}"
     ".warnings{display:grid;gap:8px;margin:20px 0}.warning{display:flex;gap:10px;align-items:flex-start;"
     "padding:12px 14px;border:1px solid #f1d28b;border-radius:12px;background:var(--amber-bg);color:#704300;font-size:.88rem}"
@@ -135,6 +142,20 @@ function applyDecisionFilters(){
     var option=select&&select.selectedOptions?select.selectedOptions[0]:null;
     var allowedCategories=(option&&option.dataset.categories?option.dataset.categories:type).split(',');
     var openOnly=document.getElementById('decision-open-weight')?.checked||false;
+    var active=select?.dataset.modality||'';
+    if(allowedCategories.indexOf(active)<0)active=allowedCategories[0];
+    if(select)select.dataset.modality=active;
+    var modalityBar=document.getElementById('decision-modality-tabs');
+    if(modalityBar){
+        var anyModality=false;
+        modalityBar.querySelectorAll('.modality-tab').forEach(function(button){
+            var show=allowedCategories.indexOf(button.dataset.category)>=0;
+            button.hidden=!show;
+            button.setAttribute('aria-pressed',show&&button.dataset.category===active?'true':'false');
+            if(show)anyModality=true;
+        });
+        modalityBar.hidden=!anyModality;
+    }
     var tabInputs=Array.from(document.querySelectorAll('.tab-input'));
     tabInputs.forEach(function(input){
         var allowed=(input.dataset.modelTypes||'').split(',').indexOf(type)>=0;
@@ -152,7 +173,7 @@ function applyDecisionFilters(){
     document.querySelectorAll('.ranking-card').forEach(function(panel){
         var selectedTables=[];
         panel.querySelectorAll('.decision-table').forEach(function(table){
-            var selected=allowedCategories.indexOf(table.dataset.modelTable)>=0;
+            var selected=table.dataset.modelTable===active;
             table.hidden=!selected;
             if(selected)selectedTables.push(table);
             var rows=Array.from(table.querySelectorAll('.decision-row'));
@@ -178,6 +199,13 @@ function applyDecisionFilters(){
 }
 document.getElementById('decision-modality')?.addEventListener('change',applyDecisionFilters);
 document.getElementById('decision-open-weight')?.addEventListener('change',applyDecisionFilters);
+document.querySelectorAll('.modality-tab').forEach(function(button){
+    button.addEventListener('click',function(){
+        var select=document.getElementById('decision-modality');
+        if(select)select.dataset.modality=button.dataset.category;
+        applyDecisionFilters();
+    });
+});
 applyDecisionFilters();
 })();"""
 _SCRIPT_HASH = base64.b64encode(hashlib.sha256(_SCRIPT.encode("utf-8")).digest()).decode("ascii")
@@ -223,6 +251,9 @@ _TEMPLATE = """<!doctype html>
 {% for group in model_type_groups(model_type_tabs) %}<option value="{{ group }}" data-categories="{{ model_type_group_categories(group)|join(',') }}"{% if loop.first %} selected{% endif %}>{{ model_type_group_label(group) }}</option>{% endfor %}
 </select></label>
 <label class="filter-check"><input id="decision-open-weight" type="checkbox"> Open-weight only</label>
+</div>
+<div class="modality-tabs" id="decision-modality-tabs" role="group" aria-label="Modality" hidden>
+{% for category, group, label in modality_tabs %}<button type="button" class="modality-tab" data-category="{{ category }}" data-group="{{ group }}" aria-pressed="false">{{ label }}</button>{% endfor %}
 </div>
 <div class="tabs">
 {% for view in snapshot.views if view.view_id in primary_view_ids %}<input class="tab-input" type="radio" name="primary-view" id="primary-tab-{{ loop.index0 }}" data-model-types="{{ view_model_types(view.view_id, model_type_tabs)|join(',') }}"{% if loop.first %} checked{% endif %}>{% endfor %}
@@ -326,6 +357,13 @@ _MODEL_TYPE_GROUP_LABELS = {
     "image": "Image",
     "video": "Video",
 }
+
+_MODALITY_TABS = (
+    ("text-to-image", "image", "Text to image"),
+    ("image-to-image", "image", "Image edit"),
+    ("text-to-video", "video", "Text to video"),
+    ("image-to-video", "video", "Image to video"),
+)
 
 _DEFAULT_MODEL_TYPE_TABS = {
     "llm": list(_PRIMARY_VIEW_IDS),
@@ -467,6 +505,7 @@ def render_html(snapshot: Snapshot) -> bytes:
             model_type_groups=model_type_groups,
             model_type_group_label=model_type_group_label,
             model_type_group_categories=model_type_group_categories,
+            modality_tabs=_MODALITY_TABS,
         )
         .encode("utf-8")
     )
