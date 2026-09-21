@@ -1,0 +1,60 @@
+schema_version: "1"
+output: distil
+fetch:
+  concurrency: 2
+  max_pages: 2
+  max_records: 1000
+  timeout_seconds: 20
+render:
+  max_html_bytes: 2000000
+  max_models: 1000
+copilot:
+  enabled: true
+  source: organization-model-list-2026-09-21
+sources:
+  - name: huggingface
+    kind: huggingface
+    required: true
+    base_url: https://huggingface.co/api/models
+    token_env: HF_TOKEN
+    page_size: 1000
+  - name: openrouter
+    kind: openrouter
+    required: false
+    base_url: https://openrouter.ai/api/v1/models
+    token_env: OPENROUTER_API_KEY
+    page_size: 1000
+  - name: artificial-analysis
+    kind: artificial_analysis
+    required: true
+    base_url: https://artificialanalysis.ai/leaderboards/models
+    page_size: 1
+  - name: artificial-analysis-image
+    kind: artificial_analysis_modality
+    required: true
+    base_url: https://artificialanalysis.ai/image/leaderboard/text-to-image
+    endpoint: text-to-image
+    page_size: 1
+  - name: artificial-analysis-editing
+    kind: artificial_analysis_modality
+    required: true
+    base_url: https://artificialanalysis.ai/image/leaderboard/editing
+    endpoint: image-to-image
+    page_size: 1
+  - name: artificial-analysis-video
+    kind: artificial_analysis_modality
+    required: true
+    base_url: https://artificialanalysis.ai/video/leaderboard/text-to-video
+    endpoint: text-to-video
+    page_size: 1
+  - name: artificial-analysis-image-video
+    kind: artificial_analysis_modality
+    required: true
+    base_url: https://artificialanalysis.ai/video/leaderboard/image-to-video
+    endpoint: image-to-video
+    page_size: 1
+  - name: livebench
+    kind: livebench
+    required: false
+    base_url: https://livebench.ai
+    endpoint: "2026-06-25"

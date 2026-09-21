@@ -1,0 +1,124 @@
+{
+  "source": "organization-model-list-2026-09-21",
+  "models": [
+    {
+      "name": "Claude Haiku",
+      "family": "Claude",
+      "level": "haiku",
+      "input_credits_per_million": 100,
+      "output_credits_per_million": 500
+    },
+    {
+      "name": "Claude Opus",
+      "family": "Claude",
+      "level": "opus",
+      "input_credits_per_million": 500,
+      "output_credits_per_million": 2500
+    },
+    {
+      "name": "Claude Opus",
+      "family": "Claude",
+      "level": "opus",
+      "input_credits_per_million": 500,
+      "output_credits_per_million": 2500
+    },
+    {
+      "name": "Claude Opus",
+      "family": "Claude",
+      "level": "opus",
+      "input_credits_per_million": 500,
+      "output_credits_per_million": 2500
+    },
+    {
+      "name": "Claude Sonnet",
+      "family": "Claude",
+      "level": "sonnet",
+      "input_credits_per_million": 200,
+      "output_credits_per_million": 1000
+    },
+    {
+      "name": "Gemini Flash",
+      "family": "Gemini",
+      "level": "flash",
+      "input_credits_per_million": 75,
+      "output_credits_per_million": 375
+    },
+    {
+      "name": "Gemini Flash",
+      "family": "Gemini",
+      "level": "flash",
+      "input_credits_per_million": 75,
+      "output_credits_per_million": 375
+    },
+    {
+      "name": "Gemini Flash",
+      "family": "Gemini",
+      "level": "flash",
+      "input_credits_per_million": 75,
+      "output_credits_per_million": 375
+    },
+    {
+      "name": "GPT Codex",
+      "family": "GPT",
+      "level": "codex",
+      "input_credits_per_million": 175,
+      "output_credits_per_million": 1400
+    },
+    {
+      "name": "GPT Luna",
+      "family": "GPT",
+      "level": "luna",
+      "input_credits_per_million": 20,
+      "output_credits_per_million": 120
+    },
+    {
+      "name": "GPT Sol",
+      "family": "GPT",
+      "level": "sol",
+      "input_credits_per_million": 400,
+      "output_credits_per_million": 2000
+    },
+    {
+      "name": "GPT Terra",
+      "family": "GPT",
+      "level": "tera",
+      "input_credits_per_million": 200,
+      "output_credits_per_million": 1200
+    },
+    {
+      "name": "Grok",
+      "family": "Grok",
+      "level": "default",
+      "input_credits_per_million": 200,
+      "output_credits_per_million": 600
+    },
+    {
+      "name": "Grok",
+      "family": "Grok",
+      "level": "default",
+      "input_credits_per_million": 200,
+      "output_credits_per_million": 600
+    },
+    {
+      "name": "Kimi Code",
+      "family": "Kimi",
+      "level": "code",
+      "input_credits_per_million": 95,
+      "output_credits_per_million": 400
+    },
+    {
+      "name": "Kimi",
+      "family": "Kimi",
+      "level": "default",
+      "input_credits_per_million": 300,
+      "output_credits_per_million": 1500
+    },
+    {
+      "name": "MAI Flash",
+      "family": "MAI",
+      "level": "flash",
+      "input_credits_per_million": 20,
+      "output_credits_per_million": 120
+    }
+  ]
+}

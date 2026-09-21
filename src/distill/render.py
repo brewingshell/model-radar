@@ -1,0 +1,422 @@
+from __future__ import annotations
+
+import base64
+import hashlib
+from datetime import UTC, date, datetime
+
+from jinja2 import BaseLoader, Environment, select_autoescape
+
+from distill.analysis import model_type
+from distill.models import ModelRecord, Snapshot
+
+_STYLE = (
+    ":root{color-scheme:dark;--ink:#e6edf3;--muted:#9aa9b8;--line:#33404d;"
+    "--paper:#18222d;--canvas:#0d141b;--navy:#d9e7f2;--teal:#66d5c5;--mint:#193c3c;"
+    "--hover:#21303d;--control:#111b24;--surface-muted:#111b24;--row-line:#293744;"
+    "--link-bg:#12302f;--link-border:#326f6b;--on-accent:#071116;--open-row:#1a2930;--open-row-hover:#20343b;"
+    "--amber:#f4c56d;--amber-bg:#3c311c;--rose:#ff9aa9;--rose-bg:#3b2028;"
+    "--shadow:0 12px 34px rgba(0,0,0,.28)}"
+    "body[data-theme='light']{color-scheme:light;--ink:#18212f;--muted:#667085;--line:#e4e7ec;"
+    "--paper:#fff;--canvas:#f4f6f8;--navy:#17324d;--teal:#087f8c;--mint:#dff4ef;"
+    "--hover:#f3f7f8;--control:#fff;--surface-muted:#f8fbfc;--row-line:#eef0f3;"
+    "--link-bg:#f0fbf8;--link-border:#b7e1db;--on-accent:#fff;--open-row:#eff8f6;--open-row-hover:#e5f2ef;"
+    "--amber:#a15c00;--amber-bg:#fff4db;--rose:#a33d52;--rose-bg:#fff0f2;"
+    "--shadow:0 12px 34px rgba(25,45,65,.08)}"
+    "*{box-sizing:border-box}body{margin:0;background:var(--canvas);color:var(--ink);"
+    "font-family:'Avenir Next','Segoe UI',sans-serif;line-height:1.5}"
+    ".page{max-width:1280px;margin:0 auto;padding:32px 24px 56px}"
+    ".report-meta{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 18px;color:var(--muted);font-size:.8rem;font-weight:700}"
+    ".theme-toggle{display:inline-grid;place-items:center;width:34px;height:34px;border:1px solid var(--line);border-radius:9px;background:var(--paper);color:var(--ink);font-size:1.05rem;cursor:pointer}"
+    ".theme-toggle:hover{border-color:var(--teal);color:var(--teal)}"
+    ".changes{padding-top:4px}.change-list{margin:10px 0 0;padding-left:20px;color:var(--muted);font-size:.88rem}"
+    "section{margin:34px 0}section>header{display:flex;align-items:end;justify-content:space-between;gap:16px;margin-bottom:14px}"
+    "h2{margin:0;color:var(--navy);font-size:1.35rem;letter-spacing:-.02em}h3{margin:0;color:var(--navy);font-size:1.05rem}"
+    ".section-note{margin:4px 0 0;color:var(--muted);font-size:.88rem}"
+    ".decision-filters{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-top:14px;padding:8px;"
+    "border:1px solid var(--line);border-radius:12px;background:var(--paper)}"
+    ".filter-field{display:flex;align-items:center;gap:8px;color:var(--navy);font-size:.82rem;font-weight:750}"
+    ".filter-select{min-width:190px;padding:8px 30px 8px 10px;border:1px solid var(--line);border-radius:8px;"
+    "background:var(--control);color:var(--ink);font:inherit}"
+    ".filter-select:hover{border-color:var(--teal);background:var(--hover)}"
+    ".filter-check{display:inline-flex;align-items:center;gap:7px;color:var(--navy);font-size:.82rem;font-weight:750;cursor:pointer}"
+    ".filter-check input{width:16px;height:16px;accent-color:var(--teal)}"
+    ".filter-empty{display:none;padding:14px;border-radius:12px;background:var(--surface-muted);color:var(--muted);font-size:.85rem}"
+    ".warnings{display:grid;gap:8px;margin:20px 0}.warning{display:flex;gap:10px;align-items:flex-start;"
+    "padding:12px 14px;border:1px solid #f1d28b;border-radius:12px;background:var(--amber-bg);color:#704300;font-size:.88rem}"
+    ".warning-mark{font-weight:900;color:var(--amber)}"
+    ".tabs{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:8px;box-shadow:var(--shadow)}"
+    ".tab-input{position:absolute;opacity:0;pointer-events:none}"
+    ".tab-labels{display:flex;gap:6px;padding:4px;border-bottom:1px solid var(--line);overflow-x:auto}"
+    ".tab-label{flex:1 0 auto;padding:11px 14px;border-radius:10px;color:var(--muted);font-size:.82rem;font-weight:800;cursor:pointer;text-align:center}"
+    ".tab-label:hover{background:var(--hover);color:var(--ink)}"
+    ".tab-label[for=primary-tab-0],.tab-label[for=primary-tab-1]{background:var(--amber-bg);color:var(--amber)}"
+    ".tabs:has(#primary-tab-0:checked) label[for=primary-tab-0],.tabs:has(#primary-tab-1:checked) label[for=primary-tab-1],.tabs:has(#primary-tab-2:checked) label[for=primary-tab-2],.tabs:has(#primary-tab-3:checked) label[for=primary-tab-3],.tabs:has(#primary-tab-4:checked) label[for=primary-tab-4],.tabs:has(#primary-tab-5:checked) label[for=primary-tab-5]{background:var(--teal);color:var(--on-accent)}"
+    ".tab-panel{display:none;border:0;box-shadow:none;padding:22px 10px 12px}.tabs:has(#primary-tab-0:checked) #primary-panel-0,.tabs:has(#primary-tab-1:checked) #primary-panel-1,.tabs:has(#primary-tab-2:checked) #primary-panel-2,.tabs:has(#primary-tab-3:checked) #primary-panel-3,.tabs:has(#primary-tab-4:checked) #primary-panel-4,.tabs:has(#primary-tab-5:checked) #primary-panel-5{display:block}"
+    ".ranking-card{min-width:0;background:var(--paper);border:1px solid var(--line);border-radius:18px;"
+    "padding:18px;box-shadow:var(--shadow)}.ranking-card .metric{min-height:42px;margin:8px 0 16px;color:var(--muted);font-size:.78rem}"
+    ".ranking-card.unavailable{background:var(--surface-muted)}.unavailable-note{padding:14px;border-radius:12px;background:var(--rose-bg);color:var(--rose);font-size:.85rem}"
+    "table{width:100%;border-collapse:separate;border-spacing:0;font-size:.84rem}th{padding:9px 10px;"
+    "color:var(--muted);font-size:.68rem;font-weight:800;letter-spacing:.07em;text-align:left;text-transform:uppercase;"
+    "border-bottom:1px solid var(--line)}td{padding:11px 10px;border-bottom:1px solid var(--row-line);vertical-align:top}"
+    "tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:var(--hover)}"
+    ".decision-row[data-open-weight='true'] td{background:var(--open-row)}.decision-row[data-open-weight='true']:hover td{background:var(--open-row-hover)}"
+    ".rank{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:8px;"
+    "background:var(--mint);color:#096c70;font-size:.75rem;font-weight:800}"
+    ".model{display:block;max-width:220px;color:var(--ink);font-weight:750;overflow-wrap:anywhere}"
+    ".open-weight-mark{display:inline-block;margin-left:6px;padding:2px 5px;border:1px solid color-mix(in srgb,var(--teal) 58%,transparent);border-radius:5px;color:var(--teal);font-size:.62rem;font-weight:800;letter-spacing:.04em;vertical-align:middle}"
+    ".sub{display:block;margin-top:2px;color:var(--muted);font-size:.72rem}"
+    ".number{font-variant-numeric:tabular-nums;white-space:nowrap}.source-link{color:var(--teal);font-weight:750;text-decoration:none}"
+    ".source-link{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid var(--link-border);border-radius:8px;background:var(--link-bg)}"
+    ".source-link:hover{background:var(--mint);border-color:var(--teal);text-decoration:none}.external-icon{font-size:1.05rem;font-weight:900;line-height:1}.unknown{color:#98a2b3}"
+    ".sort-button{display:inline-flex;align-items:center;gap:5px;border:0;padding:0;background:transparent;color:inherit;font:inherit;font-size:inherit;font-weight:inherit;letter-spacing:inherit;text-align:left;text-transform:inherit;cursor:pointer}"
+    ".sort-button:hover{color:var(--teal)}.sort-button:after{content:'↕';color:#98a2b3;font-size:.8rem}.sort-button[aria-sort='ascending']:after{content:'↑';color:var(--teal)}.sort-button[aria-sort='descending']:after{content:'↓';color:var(--teal)}"
+    "button:focus-visible,select:focus-visible{outline:2px solid var(--teal);outline-offset:2px}"
+    ".footer-note{margin:30px 0 0;color:var(--muted);font-size:.78rem}"
+    "@media(max-width:1050px){.ranking-card{overflow:hidden}.ranking-card table{min-width:620px}}"
+    "@media(max-width:620px){.page{padding:16px 12px 36px}section{margin:26px 0}.ranking-card{padding:18px 14px}.ranking-card .metric{min-height:0;margin:7px 0 12px}.ranking-card table{min-width:0;table-layout:fixed}.ranking-card th:nth-child(1),.ranking-card td:nth-child(1){width:42px}.ranking-card th:nth-child(2),.ranking-card td:nth-child(2){width:48%}.ranking-card th:nth-child(n+4),.ranking-card td:nth-child(n+4){display:none}.ranking-card .model{max-width:none}.ranking-card th,.ranking-card td{padding:10px 7px}.ranking-card th:nth-child(3){font-size:.62rem}}"
+)
+_STYLE_HASH = base64.b64encode(hashlib.sha256(_STYLE.encode("utf-8")).digest()).decode("ascii")
+_SCRIPT = """(function(){
+function sortableValue(value){
+    var text=value.trim();
+    if(!text||/^(unknown|n\\/a|--|unavailable)$/i.test(text))return{missing:true};
+    var numeric=text.replace(/[$,%]/g,'').replace(/,/g,'');
+    if(/^-?\\d+(\\.\\d+)?$/.test(numeric))return{number:Number(numeric)};
+    var date=Date.parse(text);
+    if(!Number.isNaN(date)&&/[-:]|T/.test(text))return{number:date};
+    return{string:text.toLocaleLowerCase()};
+}
+function sortTable(table,index,button){
+    var body=table.tBodies[0];
+    if(!body)return;
+    var descending=button.dataset.direction==='ascending';
+    table.querySelectorAll('.sort-button').forEach(function(item){item.dataset.direction='none';item.setAttribute('aria-sort','none');});
+    button.dataset.direction=descending?'descending':'ascending';
+    button.setAttribute('aria-sort',descending?'descending':'ascending');
+    var rows=Array.from(body.rows).map(function(row,position){return{row:row,position:position,value:sortableValue(row.cells[index]?.textContent||'')}});
+    rows.sort(function(left,right){
+        if(left.value.missing!==right.value.missing)return left.value.missing?1:-1;
+        var result=left.value.number!==undefined&&right.value.number!==undefined?left.value.number-right.value.number:(left.value.string||'').localeCompare(right.value.string||'',undefined,{numeric:true,sensitivity:'base'});
+        return result===0?left.position-right.position:(descending?-result:result);
+    });
+    rows.forEach(function(item){body.appendChild(item.row);});
+}
+document.querySelectorAll('table').forEach(function(table){
+    var headers=table.querySelectorAll('thead th');
+    headers.forEach(function(header,index){
+        var label=header.textContent.trim();
+        var button=document.createElement('button');
+        button.type='button';button.className='sort-button';button.textContent=label;button.dataset.direction='none';button.setAttribute('aria-sort','none');button.setAttribute('aria-label','Sort by '+label);
+        button.addEventListener('click',function(){sortTable(table,index,button);});
+        header.textContent='';header.appendChild(button);
+    });
+});
+function applyTheme(theme){
+    var light=theme==='light';
+    document.body.dataset.theme=light?'light':'dark';
+    var button=document.getElementById('theme-toggle');
+    if(button){
+        button.textContent=light?'☾':'☼';
+        button.setAttribute('aria-label',light?'Use dark theme':'Use light theme');
+        button.title=light?'Use dark theme':'Use light theme';
+    }
+}
+applyTheme('dark');
+document.getElementById('theme-toggle')?.addEventListener('click',function(){
+    var theme=document.body.dataset.theme==='light'?'dark':'light';
+    applyTheme(theme);
+});
+function applyDecisionFilters(){
+    var type=document.getElementById('decision-modality')?.value||'llm';
+    var openOnly=document.getElementById('decision-open-weight')?.checked||false;
+    var tabInputs=Array.from(document.querySelectorAll('.tab-input'));
+    tabInputs.forEach(function(input){
+        var allowed=(input.dataset.modelTypes||'').split(',').indexOf(type)>=0;
+        input.hidden=!allowed;
+        var label=document.querySelector('label[for="'+input.id+'"]');
+        if(label)label.hidden=!allowed;
+        var panel=document.getElementById(input.id.replace('primary-tab-','primary-panel-'));
+        if(panel)panel.hidden=!allowed;
+    });
+    var checked=tabInputs.find(function(input){return input.checked&&!input.hidden;});
+    if(!checked){
+        var firstAllowed=tabInputs.find(function(input){return !input.hidden;});
+        if(firstAllowed)firstAllowed.checked=true;
+    }
+    document.querySelectorAll('.ranking-card').forEach(function(panel){
+        panel.querySelectorAll('.decision-table').forEach(function(table){
+            var selected=table.dataset.modelTable===type;
+            table.hidden=!selected;
+            var rows=Array.from(table.querySelectorAll('.decision-row'));
+            var count=0;
+            rows.forEach(function(row){
+                var matches=!openOnly||row.dataset.openWeight==='true';
+                row.hidden=!matches||count>=10;
+                if(matches)count+=1;
+            });
+            var visible=rows.filter(function(row){return !row.hidden;});
+            visible.forEach(function(row,index){
+                var rank=row.querySelector('.rank');
+                if(rank)rank.textContent=String(index+1);
+            });
+        });
+        var selectedTable=panel.querySelector('.decision-table[data-model-table="'+type+'"]');
+        var empty=panel.querySelector('.filter-empty');
+        if(empty){
+            var selectedRows=selectedTable?selectedTable.querySelectorAll('.decision-row:not([hidden])'):[];
+            empty.style.display=selectedTable&&selectedTable.querySelectorAll('.decision-row').length&&!selectedRows.length?'block':'none';
+        }
+    });
+}
+document.getElementById('decision-modality')?.addEventListener('change',applyDecisionFilters);
+document.getElementById('decision-open-weight')?.addEventListener('change',applyDecisionFilters);
+applyDecisionFilters();
+})();"""
+_SCRIPT_HASH = base64.b64encode(hashlib.sha256(_SCRIPT.encode("utf-8")).digest()).decode("ascii")
+_CSP = f"default-src 'none'; style-src 'sha256-{_STYLE_HASH}'; script-src 'sha256-{_SCRIPT_HASH}'; base-uri 'none'; form-action 'none'"
+
+_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+
+def format_date(value: object) -> str:
+    if value is None:
+        return "unknown"
+    if isinstance(value, datetime):
+        current = value
+    elif isinstance(value, date):
+        current = datetime(value.year, value.month, value.day, tzinfo=UTC)
+    elif isinstance(value, str):
+        try:
+            current = datetime.fromisoformat(value)
+        except ValueError:
+            return value
+    else:
+        return str(value)
+    return f"{current.day:02d} {_MONTHS[current.month - 1]} {current.year:04d}"
+
+
+_TEMPLATE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analysis Distill</title>
+<meta http-equiv="Content-Security-Policy" content="{{ csp }}">
+<style>{{ style|safe }}</style>
+</head>
+<body data-theme="dark">
+<main class="page">
+<p class="report-meta"><span>{{ snapshot.status|title }} · Generated {{ format_date(snapshot.generated_at) }}</span><button class="theme-toggle" id="theme-toggle" type="button" aria-label="Use light theme" title="Use light theme">☼</button></p>
+{% if snapshot.changes.get('summary') %}<section class="changes"><header><div><h2>What's new</h2><p class="section-note">Since the previous retained snapshot.</p></div></header><ul class="change-list">{% for change in snapshot.changes.get('summary', []) %}<li>{{ change }}</li>{% endfor %}</ul></section>{% endif %}
+<section><header><div><h2>Decision views</h2><p class="section-note">Five shortlists for choosing what deserves attention now.</p></div></header>
+<div class="decision-filters" aria-label="Decision view filters">
+<label class="filter-field" for="decision-modality">Model type
+<select class="filter-select" id="decision-modality">
+<option value="llm" selected>LLM</option><option value="text-to-image">Text to image</option><option value="image-to-image">Image to image</option><option value="text-to-video">Text to video</option><option value="image-to-video">Image to video</option>
+</select></label>
+<label class="filter-check"><input id="decision-open-weight" type="checkbox"> Open-weight only</label>
+</div>
+<div class="tabs">
+{% for view in snapshot.views if view.view_id in primary_view_ids %}<input class="tab-input" type="radio" name="primary-view" id="primary-tab-{{ loop.index0 }}" data-model-types="{{ view_model_types(view.view_id, model_type_tabs)|join(',') }}"{% if loop.first %} checked{% endif %}>{% endfor %}
+<div class="tab-labels">{% for view in snapshot.views if view.view_id in primary_view_ids %}<label class="tab-label" for="primary-tab-{{ loop.index0 }}" data-model-types="{{ view_model_types(view.view_id, model_type_tabs)|join(',') }}">{{ view.title }}</label>{% endfor %}</div>
+<div class="tab-panels">
+{% for view in snapshot.views if view.view_id in primary_view_ids %}
+<article id="primary-panel-{{ loop.index0 }}" data-model-types="{{ view_model_types(view.view_id, model_type_tabs)|join(',') }}" class="ranking-card tab-panel {{ 'unavailable' if view.degraded or not view.model_ids else '' }}"><h3>{{ view.title }}</h3>
+{% if view.degraded or not view.model_ids %}
+<p class="unavailable-note">{{ view.annotations.get('reason', 'unavailable') }}</p>
+{% else %}
+<p class="metric">{{ view.annotations.get('metric', view.annotations.get('heuristic', '')) }}</p>
+{% for category, category_models in decision_models_by_type(view, model_by_id, model_type_models).items() %}
+<table class="decision-table" data-model-table="{{ category }}"{% if not loop.first %} hidden{% endif %}><thead><tr><th>Rank</th><th>Model</th>
+{% if category != 'llm' %}
+<th>AA Elo</th><th>API cost</th><th>Samples</th><th>Released</th><th>Open weights</th>
+{% elif view.view_id == 'performance-top5' %}
+<th>LiveBench</th><th>AA Intelligence Index</th><th>Cost per benchmark task (USD)</th><th>Median output tokens/s</th>
+{% elif view.view_id == 'performance-per-token-top5' %}
+<th>LiveBench</th><th>AA Intelligence / weighted USD per 1M tokens</th><th>AA Intelligence Index</th><th>Input USD / 1M</th><th>Output USD / 1M</th>
+{% elif view.view_id == 'org-copilot-per-token-top10' %}
+<th>LiveBench</th><th>AA Intelligence / Copilot credits</th><th>AA Intelligence Index</th><th>Copilot credits In / Out</th><th>Thinking level</th>
+{% elif view.view_id == 'org-copilot-best-top10' %}
+<th>LiveBench</th><th>AA Intelligence Index</th><th>AA Intelligence / Copilot credits</th><th>Copilot credits In / Out</th><th>Thinking level</th>
+{% elif view.view_id == 'benchmark-synthesis-top10' %}
+<th>LiveBench</th><th>EvalPlus</th><th>DeepSWE</th><th>Merged index</th><th>Coverage</th><th>AA Intelligence</th>
+{% else %}
+<th>HF created/updated</th><th>Downloads</th><th>Likes</th><th>Parameters (B)</th>
+{% endif %}
+{% if category == 'llm' and view.view_id != 'meaningful-new-hf-top5' %}<th>Copilot</th>{% endif %}<th>Source</th></tr></thead><tbody>
+{% for model in category_models %}
+{% set source_value = model.artificial_analysis_model_url if view.view_id != 'meaningful-new-hf-top5' else (model.source_urls[0] if model.source_urls else None) %}
+<tr class="decision-row" data-model-type="{{ model_type(model) }}" data-open-weight="{{ 'true' if model.open_weights is true else 'false' }}"><td><span class="rank">{{ loop.index }}</span></td><td><span class="model">{{ model.name }}{% if model.open_weights is true %}<span class="open-weight-mark" title="Open weights" aria-label="Open weights">OW</span>{% endif %}</span><span class="sub">{{ model.organization or 'source metadata' }}</span></td>
+{% if category != 'llm' %}
+<td>{{ model.artificial_analysis_modality_elo if model.artificial_analysis_modality_elo is not none else 'unknown' }}</td><td>{% if model.artificial_analysis_modality_cost is not none %}${{ model.artificial_analysis_modality_cost }} / {{ model.artificial_analysis_modality_cost_unit }}{% else %}unknown{% endif %}</td><td>{{ model.artificial_analysis_modality_samples if model.artificial_analysis_modality_samples is not none else 'unknown' }}</td><td>{{ model.artificial_analysis_modality_release or 'unknown' }}</td><td>{{ 'yes' if model.open_weights is true else 'no' if model.open_weights is false else 'unknown' }}</td>
+{% elif view.view_id == 'performance-top5' %}
+<td>{{ model.livebench_index if model.livebench_index is not none else 'unknown' }}</td>
+<td>{{ model.intelligence_index if model.intelligence_index is not none else 'unknown' }}</td><td>{{ model.cost_per_task_usd if model.cost_per_task_usd is not none else 'unknown' }}</td><td>{{ model.median_output_tokens_per_second if model.median_output_tokens_per_second is not none else 'unknown' }}</td>
+{% elif view.view_id == 'performance-per-token-top5' %}
+<td>{{ model.livebench_index if model.livebench_index is not none else 'unknown' }}</td>
+<td>{{ model.scores.get('aa_token_dollar_efficiency').value if model.scores.get('aa_token_dollar_efficiency') and model.scores.get('aa_token_dollar_efficiency').value is not none else 'unknown' }}</td><td>{{ model.intelligence_index if model.intelligence_index is not none else 'unknown' }}</td><td>{{ model.artificial_analysis_input_price_per_million if model.artificial_analysis_input_price_per_million is not none else 'unknown' }}</td><td>{{ model.artificial_analysis_output_price_per_million if model.artificial_analysis_output_price_per_million is not none else 'unknown' }}</td>
+{% elif view.view_id == 'org-copilot-per-token-top10' %}
+<td>{{ model.livebench_index if model.livebench_index is not none else 'unknown' }}</td>
+<td>{{ model.scores.get('copilot_token_efficiency').value if model.scores.get('copilot_token_efficiency') and model.scores.get('copilot_token_efficiency').value is not none else 'unknown' }}</td><td>{{ model.intelligence_index if model.intelligence_index is not none else 'unknown' }}</td><td>{{ model.copilot_input_credits_per_million }} / {{ model.copilot_output_credits_per_million }}</td><td>{{ model.effort_level or 'default' }}</td>
+{% elif view.view_id == 'org-copilot-best-top10' %}
+<td>{{ model.livebench_index if model.livebench_index is not none else 'unknown' }}</td>
+<td>{{ model.intelligence_index if model.intelligence_index is not none else 'unknown' }}</td><td>{{ model.scores.get('copilot_token_efficiency').value if model.scores.get('copilot_token_efficiency') and model.scores.get('copilot_token_efficiency').value is not none else 'unknown' }}</td><td>{{ model.copilot_input_credits_per_million }} / {{ model.copilot_output_credits_per_million }}</td><td>{{ model.effort_level or 'default' }}</td>
+{% elif view.view_id == 'benchmark-synthesis-top10' %}
+<td>{{ model.livebench_index if model.livebench_index is not none else 'unknown' }}</td>
+<td>{{ model.evalplus_index if model.evalplus_index is not none else 'unknown' }}</td>
+<td>{{ model.deepswe_index if model.deepswe_index is not none else 'unknown' }}</td>
+<td>{{ model.merged_benchmark_index if model.merged_benchmark_index is not none else 'unknown' }}</td>
+<td>{{ model.benchmark_coverage }}/3</td>
+<td>{{ model.intelligence_index if model.intelligence_index is not none else 'unknown' }}</td>
+{% else %}
+<td>{{ format_date(model.created_at or model.updated_at) }}</td>
+<td>{{ model.downloads if model.downloads is not none else 'unknown' }}</td>
+<td>{{ model.likes if model.likes is not none else 'unknown' }}</td>
+<td>{{ model.parameters_b if model.parameters_b is not none else 'unknown' }}</td>
+{% endif %}
+{% if category == 'llm' and view.view_id != 'meaningful-new-hf-top5' %}<td>{{ 'yes' if model.copilot_ready is true else 'no' if model.copilot_ready is false else 'unknown' }}</td>{% endif %}
+{% if source_value %}<td><a class="source-link" href="{{ safe_url(source_value) }}" title="Open source" aria-label="Open source for {{ model.name }}"><span class="external-icon" aria-hidden="true">↗</span></a></td>{% else %}<td class="unknown">unknown</td>{% endif %}
+</tr>
+{% endfor %}
+</tbody></table>
+{% endfor %}
+<p class="filter-empty">No models match the selected filters.</p>
+{% endif %}
+</article>
+{% endfor %}
+</div></div></section>
+<p class="footer-note">AA benchmark-task cost is displayed separately from token pricing. Copilot availability is shown only when an explicit availability source confirms it.</p>
+</main>
+<script>{{ script|safe }}</script>
+</body></html>"""
+
+_PRIMARY_VIEW_IDS = (
+    "org-copilot-per-token-top10",
+    "org-copilot-best-top10",
+    "benchmark-synthesis-top10",
+    "performance-top5",
+    "performance-per-token-top5",
+    "meaningful-new-hf-top5",
+)
+
+_MODEL_TYPE_LABELS = {
+    "llm": "LLM",
+    "text-to-image": "Text to image",
+    "image-to-image": "Image to image",
+    "text-to-video": "Text to video",
+    "image-to-video": "Image to video",
+}
+
+_DEFAULT_MODEL_TYPE_TABS = {
+    "llm": list(_PRIMARY_VIEW_IDS),
+    "text-to-image": ["performance-top5", "meaningful-new-hf-top5"],
+    "image-to-image": ["performance-top5"],
+    "text-to-video": ["performance-top5"],
+    "image-to-video": ["performance-top5"],
+}
+
+
+def _model_type_catalog(models: list[ModelRecord]) -> dict[str, list[ModelRecord]]:
+    catalog: dict[str, list[ModelRecord]] = {}
+    for category in _MODEL_TYPE_LABELS:
+        matching = [model for model in models if model_type(model) == category]
+        ranked = sorted(
+            matching,
+            key=lambda model: (
+                _catalog_score(model) is None,
+                -(_catalog_score(model) or 0.0),
+                -(model.downloads or 0),
+                -(model.likes or 0),
+                model.name.casefold(),
+            ),
+        )
+        open_weight = [model for model in matching if model.open_weights is True]
+        catalog[category] = sorted(
+            {model.model_id: model for model in [*ranked[:10], *open_weight[:10]]}.values(),
+            key=lambda model: (
+                _catalog_score(model) is None,
+                -(_catalog_score(model) or 0.0),
+                -(model.downloads or 0),
+                -(model.likes or 0),
+                model.name.casefold(),
+            ),
+        )
+    return catalog
+
+
+def _catalog_score(model: ModelRecord) -> float | None:
+    return (
+        model.artificial_analysis_modality_elo
+        if model_type(model) != "llm"
+        else model.intelligence_index
+    )
+
+
+def model_type_label(category: str) -> str:
+    return _MODEL_TYPE_LABELS.get(category, category)
+
+
+def view_model_types(view_id: str, model_type_tabs: dict[str, list[str]]) -> list[str]:
+    configured = model_type_tabs or _DEFAULT_MODEL_TYPE_TABS
+    allowed = [category for category, tabs in configured.items() if view_id in tabs]
+    return allowed or list(_MODEL_TYPE_LABELS)
+
+
+def decision_models(
+    view: object,
+    model_by_id: dict[str, ModelRecord],
+    model_type_models: dict[str, list[ModelRecord]],
+) -> list[ModelRecord]:
+    ids = list(getattr(view, "model_ids", []))
+    for group in model_type_models.values():
+        ids.extend(model.model_id for model in group)
+    seen: set[str] = set()
+    models: list[ModelRecord] = []
+    for model_id in ids:
+        if model_id in model_by_id and model_id not in seen:
+            seen.add(model_id)
+            models.append(model_by_id[model_id])
+    return models
+
+
+def decision_models_by_type(
+    view: object,
+    model_by_id: dict[str, ModelRecord],
+    model_type_models: dict[str, list[ModelRecord]],
+) -> dict[str, list[ModelRecord]]:
+    joined = decision_models(view, model_by_id, model_type_models)
+    return {
+        category: [model for model in joined if model_type(model) == category]
+        for category in _MODEL_TYPE_LABELS
+    }
+
+
+def render_html(snapshot: Snapshot) -> bytes:
+    environment = Environment(loader=BaseLoader(), autoescape=select_autoescape(["html", "xml"]))
+    environment.globals["safe_url"] = _safe_url
+    return (
+        environment.from_string(_TEMPLATE)
+        .render(
+            snapshot=snapshot,
+            csp=_CSP,
+            format_date=format_date,
+            style=_STYLE,
+            script=_SCRIPT,
+            primary_view_ids=_PRIMARY_VIEW_IDS,
+            model_by_id={model.model_id: model for model in snapshot.models},
+            model_type=model_type,
+            model_type_label=model_type_label,
+            model_type_models=_model_type_catalog(snapshot.models),
+            decision_models=decision_models,
+            decision_models_by_type=decision_models_by_type,
+            model_type_tabs=snapshot.summary.get("model_type_tabs", _DEFAULT_MODEL_TYPE_TABS),
+            view_model_types=view_model_types,
+        )
+        .encode("utf-8")
+    )
+
+
+def _safe_url(value: object) -> str | None:
+    if isinstance(value, str) and value.startswith(("https://", "http://")):
+        return value
+    return None

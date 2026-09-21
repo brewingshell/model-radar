@@ -1,0 +1,53 @@
+{
+  "pages": [
+    {
+      "records": [
+        {
+          "source_id": "acme/atlas-7b",
+          "name": "Atlas 7B",
+          "organization": "Acme",
+          "family": "Atlas",
+          "capabilities": ["chat", "code"],
+          "modalities": ["text"],
+          "parameters_b": 7,
+          "context_length": 32768,
+          "release_date": "2026-01-10",
+          "license": "apache-2.0",
+          "open_weights": true,
+          "commercial_use": true,
+          "origin": "open",
+          "providers": ["local"],
+          "price_per_million": 0.8,
+          "benchmarks": {"coding": 82, "reasoning": 78},
+          "provenance": ["fixture"],
+          "confidence": 0.95
+        }
+      ],
+      "next_cursor": "page-2"
+    },
+    {
+      "records": [
+        {
+          "source_id": "northstar/orbit-13b",
+          "name": "Orbit 13B",
+          "organization": "Northstar",
+          "family": "Orbit",
+          "capabilities": ["chat"],
+          "modalities": ["text"],
+          "parameters_b": 13,
+          "context_length": 65536,
+          "release_date": "2026-03-20",
+          "license": "mit",
+          "open_weights": true,
+          "commercial_use": true,
+          "origin": "open",
+          "providers": ["local", "cloud"],
+          "price_per_million": 1.5,
+          "benchmarks": {"coding": 88, "reasoning": 86},
+          "provenance": ["fixture"],
+          "confidence": 0.9
+        }
+      ]
+    }
+  ]
+}

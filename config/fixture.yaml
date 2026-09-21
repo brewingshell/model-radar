@@ -1,0 +1,16 @@
+schema_version: "1"
+output: out
+fetch:
+  concurrency: 2
+  max_pages: 10
+  max_records: 100
+  timeout_seconds: 5
+render:
+  max_html_bytes: 2000000
+  max_models: 100
+sources:
+  - name: fixture
+    kind: fixture
+    enabled: true
+    required: true
+    path: tests/fixtures/models.json

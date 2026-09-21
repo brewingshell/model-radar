@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://analysis-distill.local/schemas/snapshot-v1.schema.json",
+  "title": "Analysis Distill snapshot v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "snapshot_id",
+    "generated_at",
+    "status",
+    "source_status",
+    "warnings",
+    "models",
+    "views",
+    "summary",
+    "truncation",
+    "changes"
+  ],
+  "properties": {
+    "schema_version": { "const": "1" },
+    "snapshot_id": { "type": "string", "minLength": 1 },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["complete", "degraded"] },
+    "source_status": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/source_status" }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "models": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/model" }
+    },
+    "views": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/view" }
+    },
+    "summary": { "type": "object" },
+    "truncation": { "type": "object" },
+    "changes": { "type": "object" }
+  },
+  "$defs": {
+    "source_status": {
+      "type": "object",
+      "required": ["name", "kind", "required", "enabled", "status", "pages", "records", "duration_ms"],
+      "properties": {
+        "name": { "type": "string" },
+        "kind": { "type": "string" },
+        "required": { "type": "boolean" },
+        "enabled": { "type": "boolean" },
+        "status": { "enum": ["ok", "failed", "disabled"] },
+        "pages": { "type": "integer", "minimum": 0 },
+        "records": { "type": "integer", "minimum": 0 },
+        "total_records": { "type": ["integer", "null"], "minimum": 0 },
+        "coverage": { "type": ["string", "null"] },
+        "warning": { "type": ["string", "null"] },
+        "duration_ms": { "type": "integer", "minimum": 0 },
+        "failure": { "anyOf": [{ "$ref": "#/$defs/source_failure" }, { "type": "null" }] }
+      },
+      "additionalProperties": false
+    },
+    "source_failure": {
+      "type": "object",
+      "required": ["code", "message", "required"],
+      "properties": {
+        "code": { "type": "string" },
+        "message": { "type": "string" },
+        "required": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "score": {
+      "type": "object",
+      "required": ["value", "components", "cohort", "weights", "algorithm_version", "configuration_hash", "provisional"],
+      "properties": {
+        "value": { "type": ["number", "null"] },
+        "components": { "type": "object" },
+        "cohort": { "type": ["string", "null"] },
+        "weights": { "type": "object" },
+        "algorithm_version": { "type": "string" },
+        "configuration_hash": { "type": "string" },
+        "provisional": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "model": {
+      "type": "object",
+      "required": ["model_id", "slug", "name", "origin", "modalities", "capabilities", "providers", "benchmarks", "provenance", "confidence", "scores", "copilot_ready"],
+      "properties": {
+        "model_id": { "type": "string" },
+        "slug": { "type": "string" },
+        "organization": { "type": ["string", "null"] },
+        "family": { "type": ["string", "null"] },
+        "name": { "type": "string" },
+        "model_family": { "type": ["string", "null"] },
+        "effort_level": { "type": ["string", "null"] },
+        "variant": { "type": ["string", "null"] },
+        "source_urls": { "type": "array", "items": { "type": "string" } },
+        "created_at": { "type": ["string", "null"] },
+        "updated_at": { "type": ["string", "null"] },
+        "modalities": { "type": "array", "items": { "type": "string" } },
+        "capabilities": { "type": "array", "items": { "type": "string" } },
+        "supported_parameters": { "type": "array", "items": { "type": "string" } },
+        "tool_calling": { "type": ["boolean", "null"] },
+        "architecture": { "type": "object", "additionalProperties": { "type": "string" } },
+        "provider_details": { "type": "object", "additionalProperties": { "type": "string" } },
+        "parameters_b": { "type": ["number", "null"] },
+        "context_length": { "type": ["integer", "null"] },
+        "quantization": { "type": ["string", "null"] },
+        "release_date": { "type": ["string", "null"] },
+        "license": { "type": ["string", "null"] },
+        "open_weights": { "type": ["boolean", "null"] },
+        "commercial_use": { "type": ["boolean", "null"] },
+        "origin": { "enum": ["open", "proprietary", "unknown"] },
+        "providers": { "type": "array", "items": { "type": "string" } },
+        "price_per_million": { "type": ["number", "null"] },
+        "output_price_per_million": { "type": ["number", "null"] },
+        "pricing": { "type": "object", "additionalProperties": { "type": "number" } },
+        "downloads": { "type": ["integer", "null"], "minimum": 0 },
+        "likes": { "type": ["integer", "null"], "minimum": 0 },
+        "benchmarks": { "type": "object" },
+        "recent_signals": { "type": "object" },
+        "artificial_analysis_source_url": { "type": ["string", "null"] },
+        "artificial_analysis_model_url": { "type": ["string", "null"] },
+        "artificial_analysis_creator": { "type": ["string", "null"] },
+        "artificial_analysis_context_window": { "type": ["integer", "null"] },
+        "intelligence_index": { "type": ["number", "null"] },
+        "cost_per_task_usd": { "type": ["number", "null"] },
+        "artificial_analysis_input_price_per_million": { "type": ["number", "null"] },
+        "artificial_analysis_output_price_per_million": { "type": ["number", "null"] },
+        "median_output_tokens_per_second": { "type": ["number", "null"] },
+        "latency_first_chunk_seconds": { "type": ["number", "null"] },
+        "total_response_seconds": { "type": ["number", "null"] },
+        "meaningful_new_hf": { "type": ["boolean", "null"] },
+        "meaningful_new_hf_reason": { "type": ["string", "null"] },
+        "livebench_index": { "type": ["number", "null"] },
+        "evalplus_index": { "type": ["number", "null"] },
+        "deepswe_index": { "type": ["number", "null"] },
+        "merged_benchmark_index": { "type": ["number", "null"] },
+        "benchmark_coverage": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "benchmark_release": { "type": ["string", "null"] },
+        "benchmark_effort": { "type": ["string", "null"] },
+        "benchmark_cost_per_task": { "type": ["number", "null"] },
+        "benchmark_harness": { "type": ["string", "null"] },
+        "provenance": { "type": "array", "items": { "type": "string" } },
+        "field_provenance": {
+          "type": "object",
+          "additionalProperties": { "type": "array", "items": { "type": "string" } }
+        },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "scores": { "type": "object", "additionalProperties": { "$ref": "#/$defs/score" } },
+        "copilot_ready": { "type": ["boolean", "null"] },
+        "copilot_model_name": { "type": ["string", "null"] },
+        "copilot_input_credits_per_million": { "type": ["number", "null"] },
+        "copilot_output_credits_per_million": { "type": ["number", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "view": {
+      "type": "object",
+      "required": ["view_id", "title", "model_ids", "annotations", "degraded"],
+      "properties": {
+        "view_id": { "type": "string" },
+        "title": { "type": "string" },
+        "model_ids": { "type": "array", "items": { "type": "string" } },
+        "annotations": { "type": "object" },
+        "degraded": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

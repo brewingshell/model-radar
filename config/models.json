@@ -1,0 +1,27 @@
+{
+  "model_types": {
+    "llm": [
+      "org-copilot-per-token-top10",
+      "org-copilot-best-top10",
+      "performance-top5",
+      "performance-per-token-top5",
+      "meaningful-new-hf-top5"
+    ],
+    "text-to-image": [
+      "performance-top5",
+      "meaningful-new-hf-top5"
+    ],
+    "image-to-image": [
+      "performance-top5",
+      "meaningful-new-hf-top5"
+    ],
+    "text-to-video": [
+      "performance-top5",
+      "meaningful-new-hf-top5"
+    ],
+    "image-to-video": [
+      "performance-top5",
+      "meaningful-new-hf-top5"
+    ]
+  }
+}
