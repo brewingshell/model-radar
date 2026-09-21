@@ -480,7 +480,8 @@ def build_views(
         annotations={
             "metric": (
                 "Artificial Analysis Intelligence Index; "
-                f"total parameters <= {int(TINY_PARAMETER_LIMIT_B)}B"
+                f"total parameters <= {int(TINY_PARAMETER_LIMIT_B)}B; "
+                "size is estimated weights at FP16"
             )
         },
     )

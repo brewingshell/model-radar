@@ -206,6 +206,16 @@ _CSP = f"default-src 'none'; style-src 'sha256-{_STYLE_HASH}'; script-src 'sha25
 _MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 
+FP16_BYTES_PER_PARAMETER = 2.0
+
+
+def format_size_gb(parameters_b: float | None) -> str:
+    """Estimated weights size in GB at FP16 (2 bytes per parameter)."""
+    if parameters_b is None:
+        return "unknown"
+    return f"{parameters_b * FP16_BYTES_PER_PARAMETER:.1f}"
+
+
 def format_date(value: object) -> str:
     if value is None:
         return "unknown"
@@ -268,7 +278,9 @@ _TEMPLATE = """<!doctype html>
 <div class="table-scroll"><table class="decision-table" data-model-table="{{ tab.category }}"><thead><tr><th>Rank</th><th>Model</th>
 {% if tab.category != 'llm' %}
 <th>AA Elo</th><th>API cost</th><th>Samples</th><th>Released</th><th>Open weights</th>
-{% elif tab.view.view_id in ('performance-top5', 'tiny-llm-top10') %}
+{% elif tab.view.view_id == 'tiny-llm-top10' %}
+<th>Params (B)</th><th>Size (GB)</th><th>Benchmark (AA Index)</th><th>LiveBench</th><th>Cost per benchmark task (USD)</th><th>Median output tokens/s</th>
+{% elif tab.view.view_id == 'performance-top5' %}
 <th>LiveBench</th><th>AA Intelligence Index</th><th>Cost per benchmark task (USD)</th><th>Median output tokens/s</th>
 {% elif tab.view.view_id == 'performance-per-token-top5' %}
 <th>LiveBench</th><th>AA Intelligence / weighted USD per 1M tokens</th><th>AA Intelligence Index</th><th>Input USD / 1M</th><th>Output USD / 1M</th>
@@ -287,7 +299,13 @@ _TEMPLATE = """<!doctype html>
 <tr class="decision-row" data-model-type="{{ model_type(model) }}" data-open-weight="{{ 'true' if model.open_weights is true else 'false' }}"><td><span class="rank">{{ loop.index }}</span></td><td><span class="model">{{ model.name }}{% if model.open_weights is true %}<span class="open-weight-mark" title="Open weights" aria-label="Open weights">OW</span>{% endif %}</span><span class="sub">{{ model.organization or 'source metadata' }}</span></td>
 {% if tab.category != 'llm' %}
 <td>{{ model.artificial_analysis_modality_elo if model.artificial_analysis_modality_elo is not none else 'unknown' }}</td><td>{% if model.artificial_analysis_modality_cost is not none %}${{ model.artificial_analysis_modality_cost }} / {{ model.artificial_analysis_modality_cost_unit }}{% else %}unknown{% endif %}</td><td>{{ model.artificial_analysis_modality_samples if model.artificial_analysis_modality_samples is not none else 'unknown' }}</td><td>{{ model.artificial_analysis_modality_release or 'unknown' }}</td><td>{{ 'yes' if model.open_weights is true else 'no' if model.open_weights is false else 'unknown' }}</td>
-{% elif tab.view.view_id in ('performance-top5', 'tiny-llm-top10') %}
+{% elif tab.view.view_id == 'tiny-llm-top10' %}
+<td>{{ model.parameters_b if model.parameters_b is not none else 'unknown' }}</td>
+<td>{{ format_size_gb(model.parameters_b) }}</td>
+<td>{{ model.intelligence_index if model.intelligence_index is not none else 'unknown' }}</td>
+<td>{{ model.livebench_index if model.livebench_index is not none else 'unknown' }}</td>
+<td>{{ model.cost_per_task_usd if model.cost_per_task_usd is not none else 'unknown' }}</td><td>{{ model.median_output_tokens_per_second if model.median_output_tokens_per_second is not none else 'unknown' }}</td>
+{% elif tab.view.view_id == 'performance-top5' %}
 <td>{{ model.livebench_index if model.livebench_index is not none else 'unknown' }}</td>
 <td>{{ model.intelligence_index if model.intelligence_index is not none else 'unknown' }}</td><td>{{ model.cost_per_task_usd if model.cost_per_task_usd is not none else 'unknown' }}</td><td>{{ model.median_output_tokens_per_second if model.median_output_tokens_per_second is not none else 'unknown' }}</td>
 {% elif tab.view.view_id == 'performance-per-token-top5' %}
@@ -609,6 +627,7 @@ def render_html(snapshot: Snapshot) -> bytes:
             snapshot=snapshot,
             csp=_CSP,
             format_date=format_date,
+            format_size_gb=format_size_gb,
             style=_STYLE,
             script=_SCRIPT,
             primary_tabs=tabs,

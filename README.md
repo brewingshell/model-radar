@@ -97,8 +97,9 @@ LLM** (top of the tiny-model shortlist). Each card shows the model and its headl
 clicking it opens the matching decision tab.
 
 The LLM tabs also include two size-focused views. **Tiny LLM top 10** ranks models at or below
-8B total parameters by Artificial Analysis Intelligence Index. Parameter counts are parsed from
-model names because no source exposes a reliable size field. **On-device models top 10** covers
+8B total parameters by Artificial Analysis Intelligence Index, and its table shows the parameter
+count, an estimated FP16 weights size in GB, the benchmark index, and LiveBench. Parameter counts
+are parsed from model names because no source exposes a reliable size field. **On-device models top 10** covers
 Hugging Face models tagged `on-device`, `edge`, `tiny`, or `mobile`, ranked by downloads with
 quantised re-uploads and derivative names collapsed so each model appears once. Models such as
 `Cactus-Compute/needle2`, `needle3`, and the Bonsai quants appear here rather than in the

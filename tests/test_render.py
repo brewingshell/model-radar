@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from model_radar.analysis import attach_benchmarks, build_views, normalize
 from model_radar.models import RawRecord, Snapshot
 from model_radar.render import (
+    format_size_gb,
     model_type,
     model_type_group_categories,
     model_type_groups,
@@ -462,3 +463,48 @@ def test_highlight_cards_show_top_llm_picks():
     assert "Tiny Star 4B" in html
     assert 'data-goto-tab="' in html
     assert ".highlight:hover{border-color:var(--teal)}" in html
+
+
+def test_format_size_gb_estimates_fp16_weights():
+    assert format_size_gb(7.0) == "14.0"
+    assert format_size_gb(2.6) == "5.2"
+    assert format_size_gb(0.5) == "1.0"
+    assert format_size_gb(None) == "unknown"
+
+
+def test_tiny_llm_table_shows_params_size_and_benchmark():
+    models = normalize(
+        [
+            RawRecord(
+                source_id="aa/k2-7b",
+                name="K2 Horizon 7B",
+                intelligence_index=21.0,
+                provenance=["artificial-analysis"],
+            ),
+            RawRecord(
+                source_id="aa/lfm-2-6b",
+                name="LFM2.5-2.6B",
+                intelligence_index=8.0,
+                provenance=["artificial-analysis"],
+            ),
+        ]
+    )
+    snapshot = Snapshot(
+        snapshot_id="tiny-cols",
+        generated_at=datetime(2026, 9, 21, tzinfo=UTC),
+        status="complete",
+        source_status=[],
+        models=models,
+        views=build_views(models),
+    )
+
+    html = render_html(snapshot).decode("utf-8")
+    panel = html.split("<h3>Tiny LLM top 10</h3>", 1)[1]
+    tiny = panel.split("</table>", 1)[0]
+
+    assert "<th>Params (B)</th>" in tiny
+    assert "<th>Size (GB)</th>" in tiny
+    assert "<th>Benchmark (AA Index)</th>" in tiny
+    assert "<td>7.0</td>" in tiny
+    assert "<td>14.0</td>" in tiny
+    assert "<td>5.2</td>" in tiny
