@@ -138,7 +138,7 @@ pytest -q
 This repository includes two GitHub Actions workflows:
 
 - `.github/workflows/ci.yml` runs tests, lint, formatting, type checks, and an offline fixture smoke test on pushes and pull requests.
-- `.github/workflows/pages.yml` runs the live analysis daily at 06:00 CET (05:00 UTC) and supports manual dispatch. It validates the snapshot, creates `model-radar/index.html`, and deploys the complete `model-radar/` artifact to GitHub Pages.
+- `.github/workflows/pages.yml` runs the live analysis daily at 06:17 CET (05:17 UTC) and supports manual dispatch. The minute is deliberately offset from the hour: GitHub may delay or drop scheduled runs queued at the start of an hour. It validates the snapshot, creates `model-radar/index.html`, and deploys the complete `model-radar/` artifact to GitHub Pages.
 
 One-time setup:
 
