@@ -599,3 +599,34 @@ def test_benchmark_enrichment_matches_by_family_name():
     needle = next(model for model in models if model.slug == "cactus-compute-needle2")
     assert enriched[hf.model_id] == (12.0, 55.0)
     assert needle.model_id not in enriched
+
+
+def test_mobile_styles_define_touch_targets_and_sticky_columns():
+    models = normalize(
+        [
+            RawRecord(
+                source_id="aa/model-1",
+                name="Model 1",
+                intelligence_index=50.0,
+                provenance=["artificial-analysis"],
+            )
+        ]
+    )
+    snapshot = Snapshot(
+        snapshot_id="mobile",
+        generated_at=datetime(2026, 9, 21, tzinfo=UTC),
+        status="complete",
+        source_status=[],
+        models=models,
+        views=build_views(models),
+    )
+
+    html = render_html(snapshot).decode("utf-8")
+
+    assert "@media(max-width:620px)" in html
+    assert "min-height:44px" in html
+    assert "position:sticky" in html
+    assert "viewport-fit=cover" in html
+    assert "scroll-snap-type:x proximity" in html
+    assert "ensureActiveTabVisible" in html
+    assert ".highlights{grid-template-columns:1fr" in html
