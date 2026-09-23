@@ -89,6 +89,19 @@ def test_publication_writes_permanent_root_and_history(tmp_path):
     assert "What's new" in html
 
 
+def test_changes_include_structured_items(tmp_path):
+    from model_radar.codec import parse_snapshot
+
+    publisher = Publisher(tmp_path / "out")
+    publisher.publish(make_snapshot("First", day=18))
+    publisher.publish(make_snapshot("Second", day=19))
+
+    published = parse_snapshot((tmp_path / "out" / "current" / "snapshot.json").read_bytes())
+    assert published.changes["items"]
+    assert {item["kind"] for item in published.changes["items"]} >= {"new"}
+    assert all("label" in item and "detail" in item for item in published.changes["items"])
+
+
 def test_history_replaces_same_day_snapshot(tmp_path):
     publisher = Publisher(tmp_path / "out")
     publisher.publish(make_snapshot("First", day=18))

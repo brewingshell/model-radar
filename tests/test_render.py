@@ -219,10 +219,60 @@ def test_decision_filters_render_model_types_and_open_weight_metadata():
     assert "model-type-catalog" not in html
     assert "What's new" in html
     assert 'aria-label="Warnings"' not in html
+    assert 'class="change-list"' in html
     by_name = {model.name: model for model in models}
     assert model_type(by_name["Atlas"]) == "llm"
     assert model_type(by_name["Pixel"]) == "text-to-image"
     assert model_type(by_name["Motion"]) == "image-to-video"
+
+
+def test_whats_new_renders_structured_cards():
+    models = normalize(
+        [
+            RawRecord(
+                source_id="aa/best",
+                name="Best Power",
+                intelligence_index=60.0,
+                provenance=["artificial-analysis"],
+            )
+        ]
+    )
+    snapshot = Snapshot(
+        snapshot_id="changes",
+        generated_at=datetime(2026, 9, 21, tzinfo=UTC),
+        status="complete",
+        source_status=[],
+        models=models,
+        views=build_views(models),
+        changes={
+            "summary": ["2 model records entered the catalog."],
+            "items": [
+                {
+                    "kind": "new",
+                    "label": "New models",
+                    "count": 2,
+                    "detail": "2 model records entered the catalog.",
+                    "examples": ["Alpha", "Beta"],
+                },
+                {
+                    "kind": "quiet",
+                    "label": "No changes",
+                    "detail": "No material model or shortlist changes were detected.",
+                    "examples": [],
+                },
+            ],
+        },
+    )
+
+    html = render_html(snapshot).decode("utf-8")
+
+    assert 'class="change-grid"' in html
+    assert 'class="change-card change-new"' in html
+    assert 'class="change-card change-quiet"' in html
+    assert 'class="change-badge">New models' in html
+    assert 'class="change-count">2' in html
+    assert ">Alpha<" in html
+    assert 'class="change-list"' not in html
 
 
 def test_image_and_video_modalities_share_one_select_option_each():
