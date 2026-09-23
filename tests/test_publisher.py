@@ -98,6 +98,8 @@ def test_window_and_daily_new_model_cards():
     changes = _summarize_changes(current, previous, oldest)
     items = {item["kind"]: item for item in changes["items"]}
 
+    assert [item["kind"] for item in changes["items"]][:2] == ["new", "new-window"]
+    assert items["new"]["label"] == "New since last snapshot (2026-09-18)"
     assert items["new-window"]["count"] == 2
     assert [example["text"] for example in items["new-window"]["examples"]] == ["Model B"]
     assert items["new-window"]["detail"].endswith("since 2026-09-17.")

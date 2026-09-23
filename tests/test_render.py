@@ -248,18 +248,18 @@ def test_whats_new_renders_structured_cards():
             "summary": ["2 model records entered the catalog."],
             "items": [
                 {
+                    "kind": "new",
+                    "label": "New since last snapshot (2026-09-20)",
+                    "count": 2,
+                    "detail": "2 models added since 2026-09-20.",
+                    "examples": ["Alpha", "Beta"],
+                },
+                {
                     "kind": "new-window",
                     "label": "New in retained history",
                     "count": 3,
                     "detail": "3 models added since 2026-09-14.",
-                    "examples": ["Alpha", "Beta", "Gamma"],
-                },
-                {
-                    "kind": "new",
-                    "label": "New since last snapshot",
-                    "count": 2,
-                    "detail": "2 models added since 2026-09-20.",
-                    "examples": ["Alpha", "Beta"],
+                    "examples": ["Gamma", "Delta", "Epsilon"],
                 },
                 {
                     "kind": "leaderboard",
@@ -289,9 +289,12 @@ def test_whats_new_renders_structured_cards():
     assert 'class="change-card change-new"' in html
     assert 'class="change-card change-leaderboard"' in html
     assert 'class="change-card change-quiet"' in html
+    assert 'class="change-badge">New since last snapshot (2026-09-20)' in html
     assert 'class="change-badge">New in retained history' in html
-    assert 'class="change-badge">New since last snapshot' in html
     assert 'class="change-badge">Leaderboard update' in html
+    assert html.index("New since last snapshot (2026-09-20)") < html.index(
+        "New in retained history"
+    )
     assert 'class="change-count">3' in html
     assert "Claude Opus 5.5 overtook Claude Opus 5 on Performance, 58 vs 51 (+7)." in html
     assert (

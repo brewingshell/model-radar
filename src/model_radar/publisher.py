@@ -323,16 +323,18 @@ def _summarize_changes(
         }
     summary: list[str] = []
     items: list[dict[str, Any]] = []
-    daily_item = _new_model_item(current, previous, "new", "New since last snapshot")
+    previous_date = previous.generated_at.date().isoformat()
+    daily_item = _new_model_item(
+        current,
+        previous,
+        "new",
+        f"New since last snapshot ({previous_date})",
+    )
     daily_families = (
         {_example_text(item) for item in daily_item["examples"]} if daily_item else set()
     )
     window_item = None
-    if (
-        oldest is not None
-        and oldest.generated_at.date() < previous.generated_at.date()
-        and daily_item is not None
-    ):
+    if oldest is not None and oldest.generated_at.date() < previous.generated_at.date():
         window_item = _new_model_item(
             current,
             oldest,
@@ -340,14 +342,14 @@ def _summarize_changes(
             "New in retained history",
             exclude=daily_families,
         )
-    if window_item is not None:
-        names = ", ".join(_example_text(item) for item in window_item["examples"][:4])
-        summary.append(f"{window_item['detail']} Notable: {names}.")
-        items.append(window_item)
     if daily_item is not None:
         names = ", ".join(_example_text(item) for item in daily_item["examples"][:4])
         summary.append(f"{daily_item['detail']} Notable: {names}.")
         items.append(daily_item)
+    if window_item is not None:
+        names = ", ".join(_example_text(item) for item in window_item["examples"][:4])
+        summary.append(f"{window_item['detail']} Notable: {names}.")
+        items.append(window_item)
     leaderboard = _leaderboard_updates(current, previous)
     if leaderboard:
         details = [_example(detail) for detail in leaderboard]

@@ -11,10 +11,10 @@ A `model-radar run` invocation fetches the enabled current-state sources, valida
 
 The HTML is a permanent file generated from the latest JSON result. A regular `out/current/`
 compatibility directory is also refreshed, but it is not a symlink. The report includes a
-What's New section with three stacked, color-coded cards. **New in retained history** lists the ten
-notable arrivals since the oldest snapshot in the 14-day window, excluding any already shown in the
-daily card. **New since last snapshot** lists the ten notable arrivals since the previous retained
-day. Both rank by authoritative coverage,
+What's New section with three stacked, color-coded cards. **New since last snapshot** lists the ten
+notable arrivals since the previous retained day, with that date in the card label. **New in
+retained history** lists the ten notable arrivals since the oldest snapshot in the 14-day window,
+excluding any already shown in the daily card. Both rank by authoritative coverage,
 first-party status, open weights, and adoption, collapse version variants, and link each arrival to
 its Artificial Analysis or Hugging Face source. **Leaderboard update** reports when the top of a
 decision view changes, with the challenger, the model it overtook, both scores, and the delta. A
