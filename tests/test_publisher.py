@@ -99,14 +99,62 @@ def test_window_and_daily_new_model_cards():
     items = {item["kind"]: item for item in changes["items"]}
 
     assert items["new-window"]["count"] == 2
-    assert {example["text"] for example in items["new-window"]["examples"]} == {
-        "Model B",
-        "Model C",
-    }
+    assert [example["text"] for example in items["new-window"]["examples"]] == ["Model B"]
     assert items["new-window"]["detail"].endswith("since 2026-09-17.")
     assert items["new"]["count"] == 1
     assert [example["text"] for example in items["new"]["examples"]] == ["Model C"]
     assert items["new"]["detail"].endswith("since 2026-09-18.")
+
+
+def test_window_card_excludes_bubbles_already_in_daily_card():
+    oldest = make_leader_snapshot(
+        [RawRecord(source_id="aa/a", name="Model A", provenance=["artificial-analysis"])],
+        day=17,
+    )
+    previous = make_leader_snapshot(
+        [
+            RawRecord(source_id="aa/a", name="Model A", provenance=["artificial-analysis"]),
+            RawRecord(source_id="aa/b", name="Model B", provenance=["artificial-analysis"]),
+        ],
+        day=18,
+    )
+    current = make_leader_snapshot(
+        [
+            RawRecord(source_id="aa/a", name="Model A", provenance=["artificial-analysis"]),
+            RawRecord(source_id="aa/b", name="Model B", provenance=["artificial-analysis"]),
+            RawRecord(source_id="aa/c", name="Model C", provenance=["artificial-analysis"]),
+        ],
+        day=19,
+    )
+
+    items = {item["kind"]: item for item in _summarize_changes(current, previous, oldest)["items"]}
+    window_names = {example["text"] for example in items["new-window"]["examples"]}
+    daily_names = {example["text"] for example in items["new"]["examples"]}
+
+    assert window_names.isdisjoint(daily_names)
+
+
+def test_window_card_omitted_when_no_unique_bubbles():
+    oldest = make_leader_snapshot(
+        [RawRecord(source_id="aa/a", name="Model A", provenance=["artificial-analysis"])],
+        day=17,
+    )
+    previous = make_leader_snapshot(
+        [RawRecord(source_id="aa/a", name="Model A", provenance=["artificial-analysis"])],
+        day=18,
+    )
+    current = make_leader_snapshot(
+        [
+            RawRecord(source_id="aa/a", name="Model A", provenance=["artificial-analysis"]),
+            RawRecord(source_id="aa/b", name="Model B", provenance=["artificial-analysis"]),
+        ],
+        day=19,
+    )
+
+    items = {item["kind"]: item for item in _summarize_changes(current, previous, oldest)["items"]}
+
+    assert "new-window" not in items
+    assert [example["text"] for example in items["new"]["examples"]] == ["Model B"]
 
 
 def test_new_model_examples_carry_source_url():

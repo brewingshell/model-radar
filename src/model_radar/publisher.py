@@ -268,17 +268,29 @@ def _example_text(example: object) -> str:
 
 
 def _new_model_item(
-    current: Snapshot, baseline: Snapshot, kind: str, label: str, limit: int = 10
+    current: Snapshot,
+    baseline: Snapshot,
+    kind: str,
+    label: str,
+    limit: int = 10,
+    exclude: set[str] | None = None,
 ) -> dict[str, Any] | None:
     baseline_names = {model.name for model in baseline.models}
     new_models = [model for model in current.models if model.name not in baseline_names]
     if not new_models:
         return None
-    date = baseline.generated_at.date().isoformat()
+    candidates = new_models
+    if exclude:
+        candidates = [
+            model for model in new_models if _model_family_name(model.name) not in exclude
+        ]
     notable = [
         _example(_model_family_name(model.name), model_source_url(model))
-        for model in notable_new_models(new_models, limit=limit)
+        for model in notable_new_models(candidates, limit=limit)
     ]
+    if not notable:
+        return None
+    date = baseline.generated_at.date().isoformat()
     detail = f"{len(new_models)} models added since {date}."
     return {
         "kind": kind,
@@ -311,13 +323,27 @@ def _summarize_changes(
         }
     summary: list[str] = []
     items: list[dict[str, Any]] = []
-    if oldest is not None and oldest.generated_at.date() < previous.generated_at.date():
-        window_item = _new_model_item(current, oldest, "new-window", "New in retained history")
-        if window_item is not None:
-            names = ", ".join(_example_text(item) for item in window_item["examples"][:4])
-            summary.append(f"{window_item['detail']} Notable: {names}.")
-            items.append(window_item)
     daily_item = _new_model_item(current, previous, "new", "New since last snapshot")
+    daily_families = (
+        {_example_text(item) for item in daily_item["examples"]} if daily_item else set()
+    )
+    window_item = None
+    if (
+        oldest is not None
+        and oldest.generated_at.date() < previous.generated_at.date()
+        and daily_item is not None
+    ):
+        window_item = _new_model_item(
+            current,
+            oldest,
+            "new-window",
+            "New in retained history",
+            exclude=daily_families,
+        )
+    if window_item is not None:
+        names = ", ".join(_example_text(item) for item in window_item["examples"][:4])
+        summary.append(f"{window_item['detail']} Notable: {names}.")
+        items.append(window_item)
     if daily_item is not None:
         names = ", ".join(_example_text(item) for item in daily_item["examples"][:4])
         summary.append(f"{daily_item['detail']} Notable: {names}.")
