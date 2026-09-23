@@ -220,7 +220,33 @@ document.querySelectorAll('.highlight').forEach(function(card){
 applyDecisionFilters();
 })();"""
 _SCRIPT_HASH = base64.b64encode(hashlib.sha256(_SCRIPT.encode("utf-8")).digest()).decode("ascii")
-_CSP = f"default-src 'none'; style-src 'sha256-{_STYLE_HASH}'; script-src 'sha256-{_SCRIPT_HASH}'; base-uri 'none'; form-action 'none'"
+_CSP = (
+    f"default-src 'none'; img-src data:; style-src 'sha256-{_STYLE_HASH}'; "
+    f"script-src 'sha256-{_SCRIPT_HASH}'; base-uri 'none'; form-action 'none'"
+)
+
+_FAVICON_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">'
+    '<rect width="32" height="32" rx="7" fill="#0d141b"/>'
+    '<g fill="none" stroke="#66d5c5" stroke-width="1.5">'
+    '<circle cx="16" cy="16" r="4.5"/>'
+    '<circle cx="16" cy="16" r="8"/>'
+    '<circle cx="16" cy="16" r="11.5"/>'
+    "</g>"
+    '<g stroke="#66d5c5" stroke-width="1.4" stroke-linecap="round" opacity=".5">'
+    '<line x1="16" y1="16" x2="16" y2="4.5"/>'
+    '<line x1="16" y1="16" x2="16" y2="27.5"/>'
+    '<line x1="16" y1="16" x2="4.5" y2="16"/>'
+    '<line x1="16" y1="16" x2="27.5" y2="16"/>'
+    "</g>"
+    '<line x1="16" y1="16" x2="24.8" y2="7.2" stroke="#66d5c5" stroke-width="2.2" '
+    'stroke-linecap="round"/>'
+    '<circle cx="24.8" cy="7.2" r="2.3" fill="#66d5c5"/>'
+    "</svg>"
+)
+_FAVICON = "data:image/svg+xml;base64," + base64.b64encode(_FAVICON_SVG.encode("utf-8")).decode(
+    "ascii"
+)
 
 _MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
@@ -258,6 +284,7 @@ _TEMPLATE = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Model Radar</title>
+<link rel="icon" type="image/svg+xml" href="{{ favicon }}">
 <meta http-equiv="Content-Security-Policy" content="{{ csp }}">
 <style>{{ style|safe }}</style>
 </head>
@@ -711,6 +738,7 @@ def render_html(snapshot: Snapshot) -> bytes:
         .render(
             snapshot=snapshot,
             csp=_CSP,
+            favicon=_FAVICON,
             format_date=format_date,
             format_size_gb=format_size_gb,
             style=_STYLE,

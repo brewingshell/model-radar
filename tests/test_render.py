@@ -42,6 +42,25 @@ def test_html_escapes_untrusted_model_fields():
     assert "default-src &#39;none&#39;" in html
 
 
+def test_html_embeds_radar_favicon_with_csp_permission():
+    models = normalize(
+        [RawRecord(source_id="aa/x", name="X", intelligence_index=10.0, provenance=["test"])]
+    )
+    snapshot = Snapshot(
+        snapshot_id="favicon",
+        generated_at=datetime(2026, 9, 18, tzinfo=UTC),
+        status="complete",
+        source_status=[],
+        models=models,
+        views=build_views(models),
+    )
+
+    html = render_html(snapshot).decode("utf-8")
+
+    assert '<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,' in html
+    assert "img-src data:" in html
+
+
 def test_html_leads_with_primary_views_and_token_price_label():
     model = normalize(
         [
