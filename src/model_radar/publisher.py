@@ -3,15 +3,21 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import tempfile
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from model_radar.analysis import notable_new_model_names
+from model_radar.analysis import (
+    _benchmark_family_key,
+    _model_family_name,
+    model_type,
+    notable_new_model_names,
+)
 from model_radar.codec import canonical_json, parse_snapshot, snapshot_json
-from model_radar.models import Snapshot
+from model_radar.models import ModelRecord, Snapshot
 from model_radar.render import render_html
 
 
@@ -40,7 +46,8 @@ class Publisher:
         try:
             os.close(fd)
             previous = self._previous_snapshot(snapshot)
-            changes = _summarize_changes(snapshot, previous)
+            earlier_today = self._earlier_same_day_snapshot(snapshot)
+            changes = _summarize_changes(snapshot, previous, earlier_today)
             published = snapshot.model_copy(update={"changes": changes})
             stage = Path(tempfile.mkdtemp(prefix=".stage-", dir=self.output))
             try:
@@ -107,6 +114,36 @@ class Publisher:
             return parse_snapshot(path.read_bytes())
         except (OSError, ValueError):
             return None
+
+    def _earlier_same_day_snapshot(self, current: Snapshot) -> Snapshot | None:
+        """Most recent snapshot published earlier on the same calendar day.
+
+        Re-running on the same day replaces that day's history, so without this
+        the report would keep re-announcing everything that arrived earlier
+        today. New-model changes are compared against this run too, while the
+        day-over-day leaderboard still uses the previous retained day.
+        """
+        current_date = current.generated_at.date()
+        candidates: list[Snapshot] = []
+        if self.history.exists():
+            for path in self.history.glob("*.json"):
+                try:
+                    snapshot = parse_snapshot(path.read_bytes())
+                except (OSError, ValueError):
+                    continue
+                if snapshot.generated_at.date() == current_date:
+                    candidates.append(snapshot)
+        root_snapshot = self.output / "snapshot.json"
+        if root_snapshot.exists():
+            try:
+                snapshot = parse_snapshot(root_snapshot.read_bytes())
+                if snapshot.generated_at.date() == current_date:
+                    candidates.append(snapshot)
+            except (OSError, ValueError):
+                pass
+        if not candidates:
+            return None
+        return max(candidates, key=lambda snapshot: snapshot.generated_at)
 
     def _publish_root_files(
         self, stage: Path, files: dict[str, bytes], manifest_path: Path
@@ -185,7 +222,83 @@ class Publisher:
             raise PublicationError("HTML exceeds the configured safety limit")
 
 
-def _summarize_changes(current: Snapshot, previous: Snapshot | None) -> dict[str, Any]:
+_LEADERBOARD_VIEWS: tuple[tuple[str, str, str], ...] = (
+    ("performance-top5", "Performance", "intelligence_index"),
+    ("performance-per-token-top5", "Value per token", "aa_token_dollar_efficiency"),
+    ("org-copilot-best-top10", "Org Copilot best", "intelligence_index"),
+    ("org-copilot-per-token-top10", "Org Copilot per token", "copilot_token_efficiency"),
+    ("tiny-llm-top10", "Tiny LLM", "intelligence_index"),
+    ("mini-llm-top10", "Mini LLM", "intelligence_index"),
+)
+
+
+def _leaderboard_value(model: ModelRecord, metric: str) -> float | None:
+    if metric == "intelligence_index":
+        return model.intelligence_index
+    score = model.scores.get(metric)
+    return score.value if score and score.value is not None else None
+
+
+def _view_leader(snapshot: Snapshot, view_id: str, metric: str) -> tuple[ModelRecord, float] | None:
+    by_id = {model.model_id: model for model in snapshot.models}
+    view = next((item for item in snapshot.views if item.view_id == view_id), None)
+    if view is None:
+        return None
+    for model_id in view.model_ids:
+        model = by_id.get(model_id)
+        if model is None or model_type(model) != "llm":
+            continue
+        value = _leaderboard_value(model, metric)
+        if value is not None:
+            return model, value
+    return None
+
+
+def _leaderboard_updates(current: Snapshot, previous: Snapshot) -> list[dict[str, Any]]:
+    updates: list[dict[str, Any]] = []
+    for view_id, label, metric in _LEADERBOARD_VIEWS:
+        current_leader = _view_leader(current, view_id, metric)
+        previous_leader = _view_leader(previous, view_id, metric)
+        if current_leader is None or previous_leader is None:
+            continue
+        challenger, challenger_value = current_leader
+        incumbent, incumbent_value = previous_leader
+        if challenger.model_id == incumbent.model_id:
+            continue
+        if _benchmark_family_key(challenger.name) == _benchmark_family_key(incumbent.name):
+            continue
+        delta = challenger_value - incumbent_value
+        if delta <= 0:
+            continue
+        current_name = _display_family(challenger)
+        previous_name = _display_family(incumbent)
+        detail = (
+            f"{current_name} overtook {previous_name} on {label}, "
+            f"{challenger_value:g} vs {incumbent_value:g} ({delta:+g})."
+        )
+        updates.append(
+            {
+                "kind": "leaderboard",
+                "label": "Leaderboard update",
+                "detail": detail,
+                "examples": [previous_name, current_name],
+            }
+        )
+    return updates[:4]
+
+
+_FAMILY_PREFIX = re.compile(r"^[A-Za-z0-9 .&-]+:\s*")
+
+
+def _display_family(model: ModelRecord) -> str:
+    return _model_family_name(_FAMILY_PREFIX.sub("", model.name))
+
+
+def _summarize_changes(
+    current: Snapshot,
+    previous: Snapshot | None,
+    earlier_today: Snapshot | None = None,
+) -> dict[str, Any]:
     if previous is None:
         detail = "First retained snapshot; future runs will show changes here."
         return {
@@ -200,12 +313,14 @@ def _summarize_changes(current: Snapshot, previous: Snapshot | None) -> dict[str
             ],
             "previous_snapshot_id": None,
         }
-    previous_names = {model.name for model in previous.models}
-    new_models = [model for model in current.models if model.name not in previous_names]
+    prior_names = {model.name for model in previous.models}
+    if earlier_today is not None:
+        prior_names |= {model.name for model in earlier_today.models}
+    new_models = [model for model in current.models if model.name not in prior_names]
     summary: list[str] = []
     items: list[dict[str, Any]] = []
     if new_models:
-        notable = notable_new_model_names(new_models)
+        notable = notable_new_model_names(new_models, limit=10)
         detail = f"{len(new_models)} models new to the catalog."
         summary.append(f"{detail} Notable: {', '.join(notable[:4])}.")
         items.append(
@@ -217,6 +332,10 @@ def _summarize_changes(current: Snapshot, previous: Snapshot | None) -> dict[str
                 "examples": notable,
             }
         )
+    leaderboard = _leaderboard_updates(current, previous)
+    for update in leaderboard:
+        summary.append(update["detail"])
+        items.append(update)
     if not summary:
         detail = "No material model or shortlist changes were detected."
         summary.append(detail)

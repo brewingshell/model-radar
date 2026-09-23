@@ -255,6 +255,12 @@ def test_whats_new_renders_structured_cards():
                     "examples": ["Alpha", "Beta"],
                 },
                 {
+                    "kind": "leaderboard",
+                    "label": "Leaderboard update",
+                    "detail": "Claude Opus 5.5 overtook Claude Opus 5 on Performance, 58 vs 51 (+7).",
+                    "examples": ["Claude Opus 5", "Claude Opus 5.5"],
+                },
+                {
                     "kind": "quiet",
                     "label": "No changes",
                     "detail": "No material model or shortlist changes were detected.",
@@ -268,8 +274,10 @@ def test_whats_new_renders_structured_cards():
 
     assert 'class="change-grid"' in html
     assert 'class="change-card change-new"' in html
+    assert 'class="change-card change-leaderboard"' in html
     assert 'class="change-card change-quiet"' in html
     assert 'class="change-badge">New models' in html
+    assert 'class="change-badge">Leaderboard update' in html
     assert 'class="change-count">2' in html
     assert ">Alpha<" in html
     assert 'class="change-list"' not in html

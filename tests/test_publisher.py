@@ -4,7 +4,7 @@ import pytest
 
 from model_radar.analysis import build_views, normalize
 from model_radar.models import RawRecord, Snapshot
-from model_radar.publisher import PublicationError, Publisher
+from model_radar.publisher import PublicationError, Publisher, _summarize_changes
 
 
 def make_snapshot(name: str = "Stable", day: int = 18) -> Snapshot:
@@ -19,6 +19,85 @@ def make_snapshot(name: str = "Stable", day: int = 18) -> Snapshot:
         models=models,
         views=build_views(models),
     )
+
+
+def make_leader_snapshot(models: list[RawRecord], day: int = 18) -> Snapshot:
+    normalized = normalize(models)
+    return Snapshot(
+        snapshot_id=f"day-{day}",
+        generated_at=datetime(2026, 9, day, tzinfo=UTC),
+        status="complete",
+        source_status=[],
+        models=normalized,
+        views=build_views(normalized),
+    )
+
+
+def test_leaderboard_update_reports_new_leader_and_delta():
+    previous = make_leader_snapshot(
+        [
+            RawRecord(
+                source_id="aa/opus-5",
+                name="Claude Opus 5",
+                intelligence_index=51.0,
+                provenance=["artificial-analysis"],
+            )
+        ]
+    )
+    current = make_leader_snapshot(
+        [
+            RawRecord(
+                source_id="aa/opus-5",
+                name="Claude Opus 5",
+                intelligence_index=51.0,
+                provenance=["artificial-analysis"],
+            ),
+            RawRecord(
+                source_id="aa/opus-5-5",
+                name="Claude Opus 5.5 (max)",
+                intelligence_index=58.0,
+                provenance=["artificial-analysis"],
+            ),
+        ]
+    )
+
+    changes = _summarize_changes(current, previous)
+
+    leaders = [item for item in changes["items"] if item["kind"] == "leaderboard"]
+    assert any(
+        "Claude Opus 5.5" in item["detail"]
+        and "Claude Opus 5" in item["detail"]
+        and "+7" in item["detail"]
+        for item in leaders
+    )
+
+
+def test_earlier_same_day_suppresses_repeat_new_models():
+    previous = make_leader_snapshot(
+        [RawRecord(source_id="aa/a", name="Model A", provenance=["artificial-analysis"])]
+    )
+    earlier = make_leader_snapshot(
+        [
+            RawRecord(source_id="aa/a", name="Model A", provenance=["artificial-analysis"]),
+            RawRecord(source_id="aa/b", name="Model B", provenance=["artificial-analysis"]),
+        ],
+        day=19,
+    )
+    current = make_leader_snapshot(
+        [
+            RawRecord(source_id="aa/a", name="Model A", provenance=["artificial-analysis"]),
+            RawRecord(source_id="aa/b", name="Model B", provenance=["artificial-analysis"]),
+            RawRecord(source_id="aa/c", name="Model C", provenance=["artificial-analysis"]),
+        ],
+        day=19,
+    )
+
+    changes = _summarize_changes(current, previous, earlier_today=earlier)
+
+    new_item = next(item for item in changes["items"] if item["kind"] == "new")
+    assert "Model C" in new_item["examples"]
+    assert "Model B" not in new_item["examples"]
+    assert new_item["count"] == 1
 
 
 def test_failed_publication_preserves_previous_release(tmp_path, monkeypatch):
