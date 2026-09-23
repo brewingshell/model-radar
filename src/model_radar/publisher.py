@@ -184,23 +184,6 @@ class Publisher:
             raise PublicationError("HTML exceeds the configured safety limit")
 
 
-_CHANGE_VIEW_LABELS = {
-    "org-copilot-per-token-top10": "Org Copilot per token",
-    "org-copilot-best-top10": "Org Copilot best",
-    "performance-top5": "Performance",
-    "performance-per-token-top5": "Value per token",
-    "tiny-llm-top10": "Tiny LLM",
-    "mini-llm-top10": "Mini LLM",
-    "edge-models-top10": "On-device",
-    "meaningful-new-hf-top5": "Meaningful new HF",
-}
-
-
-def _model_display_names(snapshot: Snapshot, model_ids: list[str]) -> list[str]:
-    by_id = {model.model_id: model.name for model in snapshot.models}
-    return [by_id[model_id] for model_id in model_ids if model_id in by_id]
-
-
 def _summarize_changes(current: Snapshot, previous: Snapshot | None) -> dict[str, Any]:
     if previous is None:
         detail = "First retained snapshot; future runs will show changes here."
@@ -219,8 +202,6 @@ def _summarize_changes(current: Snapshot, previous: Snapshot | None) -> dict[str
     current_names = {model.name for model in current.models}
     previous_names = {model.name for model in previous.models}
     new_names = sorted(current_names - previous_names)
-    current_views = {view.view_id: view.model_ids for view in current.views}
-    previous_views = {view.view_id: view.model_ids for view in previous.views}
     summary: list[str] = []
     items: list[dict[str, Any]] = []
     if new_names:
@@ -233,26 +214,6 @@ def _summarize_changes(current: Snapshot, previous: Snapshot | None) -> dict[str
                 "count": len(new_names),
                 "detail": detail,
                 "examples": new_names[:6],
-            }
-        )
-    for view_id, label in _CHANGE_VIEW_LABELS.items():
-        entered_ids = [
-            item
-            for item in current_views.get(view_id, [])
-            if item not in previous_views.get(view_id, [])
-        ]
-        if not entered_ids:
-            continue
-        names = _model_display_names(current, entered_ids)
-        detail = f"{label} gained {len(entered_ids)} entr{'y' if len(entered_ids) == 1 else 'ies'}."
-        summary.append(f"{label} gained: {', '.join(names[:3])}.")
-        items.append(
-            {
-                "kind": "shortlist",
-                "label": "Shortlist move",
-                "count": len(entered_ids),
-                "detail": detail,
-                "examples": names[:5],
             }
         )
     current_sources = current.summary.get("source_record_count", 0)

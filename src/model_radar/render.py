@@ -43,7 +43,6 @@ _STYLE = (
     ".change-card{display:flex;flex-direction:column;gap:8px;padding:14px 16px;border:1px solid var(--line);"
     "border-left-width:4px;border-radius:14px;background:var(--paper);box-shadow:var(--shadow)}"
     ".change-card.change-new,.change-card.change-first{border-left-color:var(--teal)}"
-    ".change-card.change-shortlist{border-left-color:var(--amber)}"
     ".change-card.change-source{border-left-color:var(--link-border)}"
     ".change-card.change-quiet{border-left-color:var(--line)}"
     ".change-head{display:flex;align-items:center;justify-content:space-between;gap:8px}"
