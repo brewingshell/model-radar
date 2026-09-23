@@ -280,6 +280,8 @@ _TEMPLATE = """<!doctype html>
 <th>AA Elo</th><th>API cost</th><th>Samples</th><th>Released</th><th>Open weights</th>
 {% elif tab.view.view_id == 'tiny-llm-top10' %}
 <th>Params (B)</th><th>Size (GB)</th><th>Benchmark (AA Index)</th><th>LiveBench</th><th>Cost per benchmark task (USD)</th><th>Median output tokens/s</th>
+{% elif tab.view.view_id == 'mini-llm-top10' %}
+<th>Params (B)</th><th>Size (GB)</th><th>Benchmark (AA Index)</th><th>LiveBench</th><th>Downloads</th><th>HF created/updated</th>
 {% elif tab.view.view_id == 'edge-models-top10' %}
 <th>Params (B)</th><th>Size (GB)</th><th>Benchmark (AA Index)</th><th>LiveBench</th><th>Downloads</th><th>HF created/updated</th>
 {% elif tab.view.view_id == 'performance-top5' %}
@@ -307,6 +309,13 @@ _TEMPLATE = """<!doctype html>
 <td>{{ model.intelligence_index if model.intelligence_index is not none else 'unknown' }}</td>
 <td>{{ model.livebench_index if model.livebench_index is not none else 'unknown' }}</td>
 <td>{{ model.cost_per_task_usd if model.cost_per_task_usd is not none else 'unknown' }}</td><td>{{ model.median_output_tokens_per_second if model.median_output_tokens_per_second is not none else 'unknown' }}</td>
+{% elif tab.view.view_id == 'mini-llm-top10' %}
+<td>{{ model.parameters_b if model.parameters_b is not none else 'unknown' }}</td>
+<td>{{ format_size_gb(model.parameters_b) }}</td>
+<td>{{ model.intelligence_index if model.intelligence_index is not none else 'unknown' }}</td>
+<td>{{ model.livebench_index if model.livebench_index is not none else 'unknown' }}</td>
+<td>{{ model.downloads if model.downloads is not none else 'unknown' }}</td>
+<td>{{ format_date(model.created_at or model.updated_at) }}</td>
 {% elif tab.view.view_id == 'edge-models-top10' %}
 {% set bench = tab.benchmarks.get(model.model_id) %}
 <td>{{ model.parameters_b if model.parameters_b is not none else 'unknown' }}</td>
@@ -362,6 +371,7 @@ _PRIMARY_VIEW_IDS = (
     "performance-top5",
     "performance-per-token-top5",
     "tiny-llm-top10",
+    "mini-llm-top10",
     "edge-models-top10",
     "meaningful-new-hf-top5",
 )
@@ -599,6 +609,7 @@ _HIGHLIGHT_VIEWS = (
         "AA Intelligence per weighted USD per 1M tokens",
     ),
     ("tiny-llm-top10", "Best tiny LLM", "AA Intelligence Index at or below 8B parameters"),
+    ("mini-llm-top10", "Best mini LLM", "AA Intelligence Index at or below 1B parameters"),
 )
 
 

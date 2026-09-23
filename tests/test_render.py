@@ -510,6 +510,45 @@ def test_tiny_llm_table_shows_params_size_and_benchmark():
     assert "<td>5.2</td>" in tiny
 
 
+def test_mini_llm_table_shows_size_and_unknown_benchmark():
+    models = normalize(
+        [
+            RawRecord(
+                source_id="aa/qwen-0-6b",
+                name="Qwen3-0.6B",
+                intelligence_index=4.0,
+                provenance=["artificial-analysis"],
+            ),
+            RawRecord(
+                source_id="Cactus-Compute/needle3",
+                name="Cactus-Compute/needle3",
+                capabilities=["on-device", "edge"],
+                downloads=54528,
+                provenance=["huggingface"],
+            ),
+        ]
+    )
+    snapshot = Snapshot(
+        snapshot_id="mini-cols",
+        generated_at=datetime(2026, 9, 21, tzinfo=UTC),
+        status="complete",
+        source_status=[],
+        models=models,
+        views=build_views(models),
+    )
+
+    html = render_html(snapshot).decode("utf-8")
+    panel = html.split("<h3>Mini LLM top 10</h3>", 1)[1].split("</table>", 1)[0]
+
+    assert "Best mini LLM" in html
+    assert "<th>Params (B)</th>" in panel
+    assert "<th>Size (GB)</th>" in panel
+    assert "<th>Benchmark (AA Index)</th>" in panel
+    assert "<td>0.6</td>" in panel
+    assert "<td>1.2</td>" in panel
+    assert "Cactus-Compute/needle3" in panel
+
+
 def test_on_device_table_shows_params_size_and_matched_benchmark():
     models = normalize(
         [

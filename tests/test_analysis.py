@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from model_radar.analysis import (
     _benchmark_family_key,
     _edge_model_ids,
+    _mini_model_ids,
     _parameter_size_b,
     apply_copilot_catalog,
     attach_benchmarks,
@@ -693,6 +694,86 @@ def test_tiny_llm_view_keeps_only_small_models():
 
     assert names == {"Qwen3.5 4B", "K2 Horizon 7B"}
     assert "total parameters <= 8B" in tiny.annotations["metric"]
+
+
+def test_normalize_fills_parameters_b_from_base_model_tag():
+    models = normalize(
+        [
+            RawRecord(
+                source_id="Meanblock/JEV-CPU",
+                name="Meanblock/JEV-CPU",
+                capabilities=["base_model:Qwen/Qwen3-0.6B", "zero-shot-classification"],
+                provenance=["huggingface"],
+            )
+        ]
+    )
+
+    assert models[0].parameters_b == 0.6
+
+
+def test_mini_llm_view_keeps_only_toaster_sized_models():
+    models = normalize(
+        [
+            RawRecord(
+                source_id="aa/qwen-0-6b",
+                name="Qwen3-0.6B",
+                intelligence_index=4.0,
+                provenance=["artificial-analysis"],
+            ),
+            RawRecord(
+                source_id="Cactus-Compute/needle3",
+                name="Cactus-Compute/needle3",
+                capabilities=["on-device", "tool-calling", "edge"],
+                downloads=54528,
+                provenance=["huggingface"],
+            ),
+            RawRecord(
+                source_id="Meanblock/JEV-CPU",
+                name="Meanblock/JEV-CPU",
+                capabilities=["base_model:Qwen/Qwen3-0.6B", "zero-shot-classification"],
+                likes=38,
+                provenance=["huggingface"],
+            ),
+            RawRecord(
+                source_id="aa/lfm-2-6b",
+                name="LFM2.5-2.6B",
+                intelligence_index=8.0,
+                provenance=["artificial-analysis"],
+            ),
+        ]
+    )
+
+    mini = next(view for view in build_views(models) if view.view_id == "mini-llm-top10")
+    selected = {model.name for model in models if model.model_id in mini.model_ids}
+
+    assert selected == {"Qwen3-0.6B", "Cactus-Compute/needle3", "Meanblock/JEV-CPU"}
+    assert "total parameters <= 1B" in mini.annotations["metric"]
+
+
+def test_mini_model_ids_orders_scored_before_unscored():
+    models = normalize(
+        [
+            RawRecord(
+                source_id="Cactus-Compute/needle3",
+                name="Cactus-Compute/needle3",
+                capabilities=["on-device", "edge"],
+                downloads=54528,
+                provenance=["huggingface"],
+            ),
+            RawRecord(
+                source_id="aa/qwen-0-6b",
+                name="Qwen3-0.6B",
+                intelligence_index=4.0,
+                provenance=["artificial-analysis"],
+            ),
+        ]
+    )
+
+    ids = _mini_model_ids(models)
+    by_id = {model.model_id: model for model in models}
+
+    assert by_id[ids[0]].name == "Qwen3-0.6B"
+    assert by_id[ids[1]].name == "Cactus-Compute/needle3"
 
 
 def test_edge_view_includes_tagged_models_and_collapses_quants():

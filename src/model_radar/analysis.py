@@ -19,6 +19,7 @@ from model_radar.models import (
 
 _PARAMETER_SIZE = re.compile(r"(?<![\w.])(\d+(?:\.\d+)?)\s*([bBmM])(?![a-zA-Z])")
 _EDGE_CAPABILITIES = frozenset({"on-device", "edge", "tiny", "tinyllm", "mobile"})
+MINI_PARAMETER_LIMIT_B = 1.0
 TINY_PARAMETER_LIMIT_B = 8.0
 
 
@@ -34,6 +35,27 @@ def _parameter_size_b(name: str) -> float | None:
         float(match.group(1)) / (1000.0 if match.group(2).casefold() == "m" else 1.0)
         for match in _PARAMETER_SIZE.finditer(name)
     ]
+    return max(sizes) if sizes else None
+
+
+def _base_model_size_b(capabilities: Iterable[str]) -> float | None:
+    """Parameter count of the declaring base model, from Hugging Face tags.
+
+    Tags such as ``base_model:Qwen/Qwen3-0.6B`` or
+    ``base_model:finetune:Qwen/Qwen3-0.6B`` name the upstream checkpoint, which
+    is the best available size hint when the model name itself has no size.
+    """
+    sizes: list[float] = []
+    for capability in capabilities:
+        value = capability.casefold()
+        if not value.startswith("base_model:"):
+            continue
+        target = value.split(":", 1)[1]
+        for prefix in ("finetune:", "quantized:", "adapter:"):
+            target = target.removeprefix(prefix)
+        size = _parameter_size_b(target)
+        if size is not None:
+            sizes.append(size)
     return max(sizes) if sizes else None
 
 
@@ -85,6 +107,54 @@ def _edge_model_ids(models: list[ModelRecord], limit: int = 10) -> list[str]:
     return [model.model_id for model in ranked[:limit]]
 
 
+def _mini_model_ids(models: list[ModelRecord], limit: int = 10) -> list[str]:
+    """Toaster-class models at or below the mini size ceiling.
+
+    Any language model with a parsed size at or below
+    ``MINI_PARAMETER_LIMIT_B`` qualifies. Tagged on-device or edge models with
+    no parsed size are also included so tag-only models such as
+    ``Cactus-Compute/needle3`` surface, keeping their size and benchmark
+    unknown. Quantised and derivative re-uploads are collapsed. Ranked by
+    Artificial Analysis Intelligence Index where present, then by adoption, so
+    unscored models follow scored ones deterministically.
+    """
+    sized = [
+        model
+        for model in models
+        if model.parameters_b is not None
+        and model.parameters_b <= MINI_PARAMETER_LIMIT_B
+        and model_type(model) == "llm"
+        and not _EDGE_NON_LLM.search(model.name.casefold())
+    ]
+    tagged = [
+        model
+        for model in models
+        if model.parameters_b is None
+        and _is_edge_model(model)
+        and model_type(model) == "llm"
+        and not _EDGE_DERIVATIVE.search(model.name.casefold())
+        and not _EDGE_NON_LLM.search(model.name.casefold())
+    ]
+    representatives: dict[str, ModelRecord] = {}
+    for model in tagged:
+        key = _edge_family_key(model.name)
+        current = representatives.get(key)
+        if current is None or _popularity(model) > _popularity(current):
+            representatives[key] = model
+    ranked = sorted(
+        [*sized, *representatives.values()],
+        key=lambda item: (
+            item.intelligence_index is None,
+            -(item.intelligence_index or 0.0),
+            -(item.downloads or 0),
+            -(item.likes or 0),
+            item.name.casefold(),
+            item.model_id,
+        ),
+    )
+    return [model.model_id for model in ranked[:limit]]
+
+
 def normalize(records: Iterable[RawRecord]) -> list[ModelRecord]:
     grouped: dict[str, list[RawRecord]] = defaultdict(list)
     for record in records:
@@ -102,6 +172,7 @@ def normalize(records: Iterable[RawRecord]) -> list[ModelRecord]:
             item.price_per_million for item in ordered if item.price_per_million is not None
         ]
         meaningful_new_hf, meaningful_new_hf_reason = _hf_meaningfulness(ordered)
+        capabilities = sorted({value for item in ordered for value in item.capabilities})
         model = ModelRecord(
             model_id=model_id,
             slug=_slug(first.name),
@@ -115,14 +186,16 @@ def normalize(records: Iterable[RawRecord]) -> list[ModelRecord]:
             created_at=_date_extreme(ordered, "created_at", minimum=True),
             updated_at=_date_extreme(ordered, "updated_at"),
             modalities=sorted({value for item in ordered for value in item.modalities}),
-            capabilities=sorted({value for item in ordered for value in item.capabilities}),
+            capabilities=capabilities,
             supported_parameters=sorted(
                 {value for item in ordered for value in item.supported_parameters}
             ),
             tool_calling=_merge_bool(ordered, "tool_calling"),
             architecture=_merge_mapping(ordered, "architecture"),
             provider_details=_merge_mapping(ordered, "provider_details"),
-            parameters_b=first.parameters_b or _parameter_size_b(first.name),
+            parameters_b=first.parameters_b
+            or _parameter_size_b(first.name)
+            or _base_model_size_b(capabilities),
             context_length=max((item.context_length or 0 for item in ordered), default=0) or None,
             quantization=first.quantization,
             release_date=_date_extreme(ordered, "release_date"),
@@ -496,6 +569,26 @@ def build_views(
             f"No model at or below {int(TINY_PARAMETER_LIMIT_B)}B parameters has an "
             "Artificial Analysis Intelligence Index",
         )
+    mini_view = View(
+        view_id="mini-llm-top10",
+        title="Mini LLM top 10",
+        model_ids=_mini_model_ids(models),
+        annotations={
+            "metric": (
+                "Artificial Analysis Intelligence Index; "
+                f"total parameters <= {int(MINI_PARAMETER_LIMIT_B)}B or tagged on-device/edge "
+                "with an unknown size; unscored models rank after scored ones and show unknown; "
+                "size is estimated weights at FP16"
+            )
+        },
+    )
+    if not mini_view.model_ids:
+        mini_view = _unavailable_view(
+            "mini-llm-top10",
+            "Mini LLM top 10",
+            f"No model at or below {int(MINI_PARAMETER_LIMIT_B)}B parameters or tagged "
+            "on-device/edge is available",
+        )
     edge_ids = _edge_model_ids(models)
     edge_view = View(
         view_id="edge-models-top10",
@@ -522,6 +615,7 @@ def build_views(
         performance_view,
         efficiency_view,
         tiny_view,
+        mini_view,
         edge_view,
         meaningful_view,
         View(

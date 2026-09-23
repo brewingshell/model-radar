@@ -6,6 +6,7 @@
       "performance-top5",
       "performance-per-token-top5",
       "tiny-llm-top10",
+      "mini-llm-top10",
       "edge-models-top10",
       "meaningful-new-hf-top5"
     ],

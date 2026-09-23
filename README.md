@@ -91,15 +91,21 @@ source `createdAt`/`lastModified` plus a transparent adoption heuristic; OpenRou
 optional secondary metadata source. A failed required AA source leaves the primary performance
 views unavailable and prevents a production publication rather than substituting catalog metadata.
 
-The top of the report shows three summary cards: **Best power LLM** (top of the performance
-shortlist), **Best value per token** (top of the per-token efficiency shortlist), and **Best tiny
-LLM** (top of the tiny-model shortlist). Each card shows the model and its headline metric, and
-clicking it opens the matching decision tab.
+The top of the report shows four summary cards: **Best power LLM** (top of the performance
+shortlist), **Best value per token** (top of the per-token efficiency shortlist), **Best tiny
+LLM** (top of the tiny-model shortlist), and **Best mini LLM** (top of the toaster-class
+shortlist). Each card shows the model and its headline metric, and clicking it opens the matching
+decision tab.
 
-The LLM tabs also include two size-focused views. **Tiny LLM top 10** ranks models at or below
+The LLM tabs also include three size-focused views. **Tiny LLM top 10** ranks models at or below
 8B total parameters by Artificial Analysis Intelligence Index, and its table shows the parameter
-count, an estimated FP16 weights size in GB, the benchmark index, and LiveBench. Parameter counts
-are parsed from model names because no source exposes a reliable size field. **On-device models top 10** covers
+count, an estimated FP16 weights size in GB, the benchmark index, and LiveBench. **Mini LLM top 10**
+narrows the ceiling to 1B parameters for toaster-class deployment. It also admits models tagged
+`on-device` or `edge` whose size cannot be parsed, so tag-only models such as
+`Cactus-Compute/needle3` appear with `unknown` size and benchmark; quantised and derivative
+re-uploads are collapsed, and unscored models rank after scored ones. Parameter counts
+are parsed from model names, with the Hugging Face `base_model` tag as a fallback for finetunes,
+because no source exposes a reliable size field. **On-device models top 10** covers
 Hugging Face models tagged `on-device`, `edge`, `tiny`, or `mobile`, ranked by downloads with
 quantised re-uploads and derivative names collapsed so each model appears once. Its table shows the
 parameter count, estimated FP16 weights size in GB, benchmark, LiveBench, and downloads. Benchmark
@@ -138,7 +144,7 @@ pytest -q
 This repository includes two GitHub Actions workflows:
 
 - `.github/workflows/ci.yml` runs tests, lint, formatting, type checks, and an offline fixture smoke test on pushes and pull requests.
-- `.github/workflows/pages.yml` runs the live analysis daily at 06:17 CET (05:17 UTC) and supports manual dispatch. The minute is deliberately offset from the hour: GitHub may delay or drop scheduled runs queued at the start of an hour. It validates the snapshot, creates `model-radar/index.html`, and deploys the complete `model-radar/` artifact to GitHub Pages.
+- `.github/workflows/pages.yml` runs the live analysis daily at 06:17 CET (05:17 UTC) and supports manual dispatch and a `publish` `repository_dispatch` for an external scheduler. The minute is deliberately offset from the hour: GitHub may delay or drop scheduled runs queued at the start of an hour, and scheduled runs in a brand-new repository can take a while to start firing. It validates the snapshot, creates `model-radar/index.html`, and deploys the complete `model-radar/` artifact to GitHub Pages.
 
 One-time setup:
 
