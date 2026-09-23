@@ -72,16 +72,17 @@ def test_leaderboard_update_reports_new_leader_and_delta():
     )
 
 
-def test_earlier_same_day_suppresses_repeat_new_models():
-    previous = make_leader_snapshot(
-        [RawRecord(source_id="aa/a", name="Model A", provenance=["artificial-analysis"])]
+def test_window_and_daily_new_model_cards():
+    oldest = make_leader_snapshot(
+        [RawRecord(source_id="aa/a", name="Model A", provenance=["artificial-analysis"])],
+        day=17,
     )
-    earlier = make_leader_snapshot(
+    previous = make_leader_snapshot(
         [
             RawRecord(source_id="aa/a", name="Model A", provenance=["artificial-analysis"]),
             RawRecord(source_id="aa/b", name="Model B", provenance=["artificial-analysis"]),
         ],
-        day=19,
+        day=18,
     )
     current = make_leader_snapshot(
         [
@@ -92,12 +93,35 @@ def test_earlier_same_day_suppresses_repeat_new_models():
         day=19,
     )
 
-    changes = _summarize_changes(current, previous, earlier_today=earlier)
+    changes = _summarize_changes(current, previous, oldest)
+    items = {item["kind"]: item for item in changes["items"]}
 
-    new_item = next(item for item in changes["items"] if item["kind"] == "new")
-    assert "Model C" in new_item["examples"]
-    assert "Model B" not in new_item["examples"]
-    assert new_item["count"] == 1
+    assert items["new-window"]["count"] == 2
+    assert set(items["new-window"]["examples"]) == {"Model B", "Model C"}
+    assert items["new-window"]["detail"].endswith("since 2026-09-17.")
+    assert items["new"]["count"] == 1
+    assert items["new"]["examples"] == ["Model C"]
+    assert items["new"]["detail"].endswith("since 2026-09-18.")
+
+
+def test_window_card_omitted_when_only_one_prior_day():
+    previous = make_leader_snapshot(
+        [RawRecord(source_id="aa/a", name="Model A", provenance=["artificial-analysis"])],
+        day=18,
+    )
+    current = make_leader_snapshot(
+        [
+            RawRecord(source_id="aa/a", name="Model A", provenance=["artificial-analysis"]),
+            RawRecord(source_id="aa/b", name="Model B", provenance=["artificial-analysis"]),
+        ],
+        day=19,
+    )
+
+    changes = _summarize_changes(current, previous, previous)
+
+    kinds = [item["kind"] for item in changes["items"]]
+    assert "new-window" not in kinds
+    assert "new" in kinds
 
 
 def test_failed_publication_preserves_previous_release(tmp_path, monkeypatch):

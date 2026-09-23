@@ -248,10 +248,17 @@ def test_whats_new_renders_structured_cards():
             "summary": ["2 model records entered the catalog."],
             "items": [
                 {
+                    "kind": "new-window",
+                    "label": "New in retained history",
+                    "count": 3,
+                    "detail": "3 models added since 2026-09-14.",
+                    "examples": ["Alpha", "Beta", "Gamma"],
+                },
+                {
                     "kind": "new",
-                    "label": "New models",
+                    "label": "New since last snapshot",
                     "count": 2,
-                    "detail": "2 model records entered the catalog.",
+                    "detail": "2 models added since 2026-09-20.",
                     "examples": ["Alpha", "Beta"],
                 },
                 {
@@ -273,12 +280,15 @@ def test_whats_new_renders_structured_cards():
     html = render_html(snapshot).decode("utf-8")
 
     assert 'class="change-grid"' in html
+    assert "grid-template-columns:1fr" in html
+    assert 'class="change-card change-new-window"' in html
     assert 'class="change-card change-new"' in html
     assert 'class="change-card change-leaderboard"' in html
     assert 'class="change-card change-quiet"' in html
-    assert 'class="change-badge">New models' in html
+    assert 'class="change-badge">New in retained history' in html
+    assert 'class="change-badge">New since last snapshot' in html
     assert 'class="change-badge">Leaderboard update' in html
-    assert 'class="change-count">2' in html
+    assert 'class="change-count">3' in html
     assert ">Alpha<" in html
     assert 'class="change-list"' not in html
 

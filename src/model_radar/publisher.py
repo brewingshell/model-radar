@@ -46,8 +46,8 @@ class Publisher:
         try:
             os.close(fd)
             previous = self._previous_snapshot(snapshot)
-            earlier_today = self._earlier_same_day_snapshot(snapshot)
-            changes = _summarize_changes(snapshot, previous, earlier_today)
+            oldest = self._oldest_snapshot(snapshot)
+            changes = _summarize_changes(snapshot, previous, oldest)
             published = snapshot.model_copy(update={"changes": changes})
             stage = Path(tempfile.mkdtemp(prefix=".stage-", dir=self.output))
             try:
@@ -88,62 +88,32 @@ class Publisher:
         finally:
             self.lock.unlink(missing_ok=True)
 
+    def _prior_snapshots(self, current: Snapshot) -> list[tuple[datetime, Snapshot]]:
+        """Every retained snapshot from before the current calendar day."""
+        current_date = current.generated_at.date()
+        snapshots: dict[datetime, Snapshot] = {}
+        paths: list[Path] = []
+        if self.history.exists():
+            paths.extend(self.history.glob("*.json"))
+        root_snapshot = self.output / "snapshot.json"
+        if root_snapshot.exists():
+            paths.append(root_snapshot)
+        for path in paths:
+            try:
+                snapshot = parse_snapshot(path.read_bytes())
+            except (OSError, ValueError):
+                continue
+            if snapshot.generated_at.date() < current_date:
+                snapshots[snapshot.generated_at] = snapshot
+        return sorted(snapshots.items())
+
     def _previous_snapshot(self, current: Snapshot) -> Snapshot | None:
-        candidates: list[tuple[datetime, Path]] = []
-        current_date = current.generated_at.date()
-        if self.history.exists():
-            for path in self.history.glob("*.json"):
-                try:
-                    snapshot = parse_snapshot(path.read_bytes())
-                    if snapshot.generated_at.date() < current_date:
-                        candidates.append((snapshot.generated_at, path))
-                except (OSError, ValueError):
-                    continue
-        root_snapshot = self.output / "snapshot.json"
-        if root_snapshot.exists():
-            try:
-                snapshot = parse_snapshot(root_snapshot.read_bytes())
-                if snapshot.generated_at.date() < current_date:
-                    candidates.append((snapshot.generated_at, root_snapshot))
-            except (OSError, ValueError):
-                pass
-        if not candidates:
-            return None
-        path = max(candidates, key=lambda item: item[0])[1]
-        try:
-            return parse_snapshot(path.read_bytes())
-        except (OSError, ValueError):
-            return None
+        prior = self._prior_snapshots(current)
+        return prior[-1][1] if prior else None
 
-    def _earlier_same_day_snapshot(self, current: Snapshot) -> Snapshot | None:
-        """Most recent snapshot published earlier on the same calendar day.
-
-        Re-running on the same day replaces that day's history, so without this
-        the report would keep re-announcing everything that arrived earlier
-        today. New-model changes are compared against this run too, while the
-        day-over-day leaderboard still uses the previous retained day.
-        """
-        current_date = current.generated_at.date()
-        candidates: list[Snapshot] = []
-        if self.history.exists():
-            for path in self.history.glob("*.json"):
-                try:
-                    snapshot = parse_snapshot(path.read_bytes())
-                except (OSError, ValueError):
-                    continue
-                if snapshot.generated_at.date() == current_date:
-                    candidates.append(snapshot)
-        root_snapshot = self.output / "snapshot.json"
-        if root_snapshot.exists():
-            try:
-                snapshot = parse_snapshot(root_snapshot.read_bytes())
-                if snapshot.generated_at.date() == current_date:
-                    candidates.append(snapshot)
-            except (OSError, ValueError):
-                pass
-        if not candidates:
-            return None
-        return max(candidates, key=lambda snapshot: snapshot.generated_at)
+    def _oldest_snapshot(self, current: Snapshot) -> Snapshot | None:
+        prior = self._prior_snapshots(current)
+        return prior[0][1] if prior else None
 
     def _publish_root_files(
         self, stage: Path, files: dict[str, bytes], manifest_path: Path
@@ -294,10 +264,30 @@ def _display_family(model: ModelRecord) -> str:
     return _model_family_name(_FAMILY_PREFIX.sub("", model.name))
 
 
+def _new_model_item(
+    current: Snapshot, baseline: Snapshot, kind: str, label: str, limit: int = 10
+) -> dict[str, Any] | None:
+    baseline_names = {model.name for model in baseline.models}
+    new_models = [model for model in current.models if model.name not in baseline_names]
+    if not new_models:
+        return None
+    date = baseline.generated_at.date().isoformat()
+    notable = notable_new_model_names(new_models, limit=limit)
+    detail = f"{len(new_models)} models added since {date}."
+    return {
+        "kind": kind,
+        "label": label,
+        "count": len(new_models),
+        "detail": detail,
+        "examples": notable,
+        "since": date,
+    }
+
+
 def _summarize_changes(
     current: Snapshot,
     previous: Snapshot | None,
-    earlier_today: Snapshot | None = None,
+    oldest: Snapshot | None = None,
 ) -> dict[str, Any]:
     if previous is None:
         detail = "First retained snapshot; future runs will show changes here."
@@ -313,27 +303,20 @@ def _summarize_changes(
             ],
             "previous_snapshot_id": None,
         }
-    prior_names = {model.name for model in previous.models}
-    if earlier_today is not None:
-        prior_names |= {model.name for model in earlier_today.models}
-    new_models = [model for model in current.models if model.name not in prior_names]
     summary: list[str] = []
     items: list[dict[str, Any]] = []
-    if new_models:
-        notable = notable_new_model_names(new_models, limit=10)
-        detail = f"{len(new_models)} models new to the catalog."
-        summary.append(f"{detail} Notable: {', '.join(notable[:4])}.")
-        items.append(
-            {
-                "kind": "new",
-                "label": "New models",
-                "count": len(new_models),
-                "detail": detail,
-                "examples": notable,
-            }
-        )
-    leaderboard = _leaderboard_updates(current, previous)
-    for update in leaderboard:
+    if oldest is not None and oldest.generated_at.date() < previous.generated_at.date():
+        window_item = _new_model_item(current, oldest, "new-window", "New in retained history")
+        if window_item is not None:
+            summary.append(
+                f"{window_item['detail']} Notable: {', '.join(window_item['examples'][:4])}."
+            )
+            items.append(window_item)
+    daily_item = _new_model_item(current, previous, "new", "New since last snapshot")
+    if daily_item is not None:
+        summary.append(f"{daily_item['detail']} Notable: {', '.join(daily_item['examples'][:4])}.")
+        items.append(daily_item)
+    for update in _leaderboard_updates(current, previous):
         summary.append(update["detail"])
         items.append(update)
     if not summary:
