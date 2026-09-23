@@ -67,7 +67,9 @@ def test_leaderboard_update_reports_new_leader_and_delta():
     assert len(leaders) == 1
     assert leaders[0]["count"] == 1
     assert any(
-        "Claude Opus 5.5" in example and "Claude Opus 5" in example and "+7" in example
+        "Claude Opus 5.5" in example["text"]
+        and "Claude Opus 5" in example["text"]
+        and "+7" in example["text"]
         for example in leaders[0]["examples"]
     )
 
@@ -97,11 +99,36 @@ def test_window_and_daily_new_model_cards():
     items = {item["kind"]: item for item in changes["items"]}
 
     assert items["new-window"]["count"] == 2
-    assert set(items["new-window"]["examples"]) == {"Model B", "Model C"}
+    assert {example["text"] for example in items["new-window"]["examples"]} == {
+        "Model B",
+        "Model C",
+    }
     assert items["new-window"]["detail"].endswith("since 2026-09-17.")
     assert items["new"]["count"] == 1
-    assert items["new"]["examples"] == ["Model C"]
+    assert [example["text"] for example in items["new"]["examples"]] == ["Model C"]
     assert items["new"]["detail"].endswith("since 2026-09-18.")
+
+
+def test_new_model_examples_carry_source_url():
+    previous = make_leader_snapshot([], day=18)
+    current = make_leader_snapshot(
+        [
+            RawRecord(
+                source_id="openai/gpt-6",
+                name="openai/gpt-6",
+                source_url="https://huggingface.co/openai/gpt-6",
+                provenance=["huggingface"],
+            )
+        ],
+        day=19,
+    )
+
+    changes = _summarize_changes(current, previous)
+
+    new_item = next(item for item in changes["items"] if item["kind"] == "new")
+    assert new_item["examples"] == [
+        {"text": "openai/gpt-6", "url": "https://huggingface.co/openai/gpt-6"}
+    ]
 
 
 def test_window_card_omitted_when_only_one_prior_day():

@@ -54,6 +54,9 @@ _STYLE = (
     ".change-chip{display:inline-block;max-width:100%;padding:6px 13px;border:1px solid var(--line);"
     "border-radius:12px;background:var(--surface-muted);color:var(--ink);font-size:.84rem;line-height:1.45;"
     "overflow-wrap:anywhere}"
+    "a.change-chip{text-decoration:none;cursor:pointer;transition:border-color 150ms ease,color 150ms ease,background-color 150ms ease}"
+    "a.change-chip:hover,a.change-chip:focus-visible{border-color:var(--teal);color:var(--teal);background:var(--mint)}"
+    ".change-chip .external-icon{margin-left:6px;color:var(--teal);font-size:.78rem;font-weight:900}"
     "section{margin:34px 0}section>header{display:flex;align-items:end;justify-content:space-between;gap:16px;margin-bottom:14px}"
     "h2{margin:0;color:var(--navy);font-size:1.35rem;letter-spacing:-.02em}h3{margin:0;color:var(--navy);font-size:1.05rem}"
     ".section-note{margin:4px 0 0;color:var(--muted);font-size:.88rem}"
@@ -274,7 +277,7 @@ _TEMPLATE = """<!doctype html>
 </section>
 {% endif %}
 {% set change_items = snapshot.changes.get('items') %}
-{% if change_items %}<section class="whats-new" aria-label="What's new"><header><div><h2>What's new</h2><p class="section-note">Since the previous retained snapshot.</p></div></header><div class="change-grid">{% for item in change_items %}<article class="change-card change-{{ item.kind }}"><div class="change-head"><span class="change-badge">{{ item.label }}</span>{% if item.count %}<span class="change-count">{{ item.count }}</span>{% endif %}</div><p class="change-detail">{{ item.detail }}</p>{% if item.examples %}<div class="change-chips">{% for example in item.examples %}<span class="change-chip">{{ example }}</span>{% endfor %}</div>{% endif %}</article>{% endfor %}</div></section>
+{% if change_items %}<section class="whats-new" aria-label="What's new"><header><div><h2>What's new</h2><p class="section-note">Since the previous retained snapshot.</p></div></header><div class="change-grid">{% for item in change_items %}<article class="change-card change-{{ item.kind }}"><div class="change-head"><span class="change-badge">{{ item.label }}</span>{% if item.count %}<span class="change-count">{{ item.count }}</span>{% endif %}</div><p class="change-detail">{{ item.detail }}</p>{% if item.examples %}<div class="change-chips">{% for example in item.examples %}{% set example_text = example.text if example is mapping and example.text else example %}{% set example_url = safe_url(example.url) if example is mapping else None %}{% if example_url %}<a class="change-chip change-chip-link" href="{{ example_url }}" target="_blank" rel="noopener noreferrer" title="Open source for {{ example_text }}">{{ example_text }}<span class="external-icon" aria-hidden="true">↗</span></a>{% else %}<span class="change-chip">{{ example_text }}</span>{% endif %}{% endfor %}</div>{% endif %}</article>{% endfor %}</div></section>
 {% elif snapshot.changes.get('summary') %}<section class="changes" aria-label="What's new"><header><div><h2>What's new</h2><p class="section-note">Since the previous retained snapshot.</p></div></header><ul class="change-list">{% for change in snapshot.changes.get('summary', []) %}<li>{{ change }}</li>{% endfor %}</ul></section>{% endif %}
 <section><header><div><h2>Decision views</h2><p class="section-note">Shortlists for choosing what deserves attention now.</p></div></header>
 <div class="decision-filters" aria-label="Decision view filters">

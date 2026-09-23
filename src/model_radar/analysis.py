@@ -107,8 +107,8 @@ def _edge_model_ids(models: list[ModelRecord], limit: int = 10) -> list[str]:
     return [model.model_id for model in ranked[:limit]]
 
 
-def notable_new_model_names(models: list[ModelRecord], limit: int = 6) -> list[str]:
-    """Human-facing names of the most significant new models, one per family.
+def notable_new_models(models: list[ModelRecord], limit: int = 6) -> list[ModelRecord]:
+    """The most significant new models, one per family.
 
     Raw catalog diffs are dominated by community re-uploads, so this ranks by
     authoritative coverage (Artificial Analysis), then first-party releases,
@@ -130,17 +130,32 @@ def notable_new_model_names(models: list[ModelRecord], limit: int = 6) -> list[s
             model.name.casefold(),
         )
 
-    selected: list[str] = []
+    selected: list[ModelRecord] = []
     families: set[str] = set()
     for model in sorted(models, key=importance, reverse=True):
         family = _benchmark_family_key(model.name)
         if family in families:
             continue
         families.add(family)
-        selected.append(_model_family_name(model.name))
+        selected.append(model)
         if len(selected) == limit:
             break
     return selected
+
+
+def notable_new_model_names(models: list[ModelRecord], limit: int = 6) -> list[str]:
+    """Human-facing names of the most significant new models, one per family."""
+    return [_model_family_name(model.name) for model in notable_new_models(models, limit)]
+
+
+def model_source_url(model: ModelRecord) -> str | None:
+    """Best link for a model, preferring its Artificial Analysis page."""
+    if model.artificial_analysis_model_url:
+        return model.artificial_analysis_model_url
+    for url in model.source_urls:
+        if url:
+            return url
+    return None
 
 
 def _mini_model_ids(models: list[ModelRecord], limit: int = 10) -> list[str]:

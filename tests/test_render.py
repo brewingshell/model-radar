@@ -302,6 +302,55 @@ def test_whats_new_renders_structured_cards():
     assert 'class="change-list"' not in html
 
 
+def test_new_model_chips_link_to_source():
+    models = normalize(
+        [
+            RawRecord(
+                source_id="aa/best",
+                name="Best Power",
+                intelligence_index=60.0,
+                provenance=["artificial-analysis"],
+            )
+        ]
+    )
+    snapshot = Snapshot(
+        snapshot_id="links",
+        generated_at=datetime(2026, 9, 21, tzinfo=UTC),
+        status="complete",
+        source_status=[],
+        models=models,
+        views=build_views(models),
+        changes={
+            "summary": ["1 model added."],
+            "items": [
+                {
+                    "kind": "new",
+                    "label": "New since last snapshot",
+                    "count": 2,
+                    "detail": "2 models added since 2026-09-20.",
+                    "examples": [
+                        {
+                            "text": "GPT-6 Sol",
+                            "url": "https://artificialanalysis.ai/models/gpt-6-sol",
+                        },
+                        {"text": "Local Model", "url": None},
+                    ],
+                }
+            ],
+        },
+    )
+
+    html = render_html(snapshot).decode("utf-8")
+
+    assert (
+        '<a class="change-chip change-chip-link" '
+        'href="https://artificialanalysis.ai/models/gpt-6-sol"' in html
+    )
+    assert 'target="_blank" rel="noopener noreferrer"' in html
+    assert '<span class="change-chip">Local Model</span>' in html
+    assert '<span class="change-chip">GPT-6 Sol</span>' not in html
+
+
 def test_image_and_video_modalities_share_one_select_option_each():
     groups = {
         "llm": ["org-copilot-best-top10", "performance-top5"],

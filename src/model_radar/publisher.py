@@ -13,8 +13,9 @@ from typing import Any
 from model_radar.analysis import (
     _benchmark_family_key,
     _model_family_name,
+    model_source_url,
     model_type,
-    notable_new_model_names,
+    notable_new_models,
 )
 from model_radar.codec import canonical_json, parse_snapshot, snapshot_json
 from model_radar.models import ModelRecord, Snapshot
@@ -224,8 +225,8 @@ def _view_leader(snapshot: Snapshot, view_id: str, metric: str) -> tuple[ModelRe
     return None
 
 
-def _leaderboard_updates(current: Snapshot, previous: Snapshot) -> list[dict[str, Any]]:
-    updates: list[dict[str, Any]] = []
+def _leaderboard_updates(current: Snapshot, previous: Snapshot) -> list[str]:
+    updates: list[str] = []
     for view_id, label, metric in _LEADERBOARD_VIEWS:
         current_leader = _view_leader(current, view_id, metric)
         previous_leader = _view_leader(previous, view_id, metric)
@@ -242,17 +243,9 @@ def _leaderboard_updates(current: Snapshot, previous: Snapshot) -> list[dict[str
             continue
         current_name = _display_family(challenger)
         previous_name = _display_family(incumbent)
-        detail = (
+        updates.append(
             f"{current_name} overtook {previous_name} on {label}, "
             f"{challenger_value:g} vs {incumbent_value:g} ({delta:+g})."
-        )
-        updates.append(
-            {
-                "kind": "leaderboard",
-                "label": "Leaderboard update",
-                "detail": detail,
-                "examples": [previous_name, current_name],
-            }
         )
     return updates[:4]
 
@@ -264,6 +257,16 @@ def _display_family(model: ModelRecord) -> str:
     return _model_family_name(_FAMILY_PREFIX.sub("", model.name))
 
 
+def _example(text: str, url: str | None = None) -> dict[str, str | None]:
+    return {"text": text, "url": url}
+
+
+def _example_text(example: object) -> str:
+    if isinstance(example, dict):
+        return str(example.get("text", ""))
+    return str(example)
+
+
 def _new_model_item(
     current: Snapshot, baseline: Snapshot, kind: str, label: str, limit: int = 10
 ) -> dict[str, Any] | None:
@@ -272,7 +275,10 @@ def _new_model_item(
     if not new_models:
         return None
     date = baseline.generated_at.date().isoformat()
-    notable = notable_new_model_names(new_models, limit=limit)
+    notable = [
+        _example(_model_family_name(model.name), model_source_url(model))
+        for model in notable_new_models(new_models, limit=limit)
+    ]
     detail = f"{len(new_models)} models added since {date}."
     return {
         "kind": kind,
@@ -308,18 +314,18 @@ def _summarize_changes(
     if oldest is not None and oldest.generated_at.date() < previous.generated_at.date():
         window_item = _new_model_item(current, oldest, "new-window", "New in retained history")
         if window_item is not None:
-            summary.append(
-                f"{window_item['detail']} Notable: {', '.join(window_item['examples'][:4])}."
-            )
+            names = ", ".join(_example_text(item) for item in window_item["examples"][:4])
+            summary.append(f"{window_item['detail']} Notable: {names}.")
             items.append(window_item)
     daily_item = _new_model_item(current, previous, "new", "New since last snapshot")
     if daily_item is not None:
-        summary.append(f"{daily_item['detail']} Notable: {', '.join(daily_item['examples'][:4])}.")
+        names = ", ".join(_example_text(item) for item in daily_item["examples"][:4])
+        summary.append(f"{daily_item['detail']} Notable: {names}.")
         items.append(daily_item)
     leaderboard = _leaderboard_updates(current, previous)
     if leaderboard:
-        details = [update["detail"] for update in leaderboard]
-        summary.extend(details)
+        details = [_example(detail) for detail in leaderboard]
+        summary.extend(leaderboard)
         items.append(
             {
                 "kind": "leaderboard",

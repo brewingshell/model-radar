@@ -14,9 +14,10 @@ compatibility directory is also refreshed, but it is not a symlink. The report i
 What's New section with three stacked, color-coded cards. **New in retained history** lists the ten
 notable arrivals since the oldest snapshot in the 14-day window. **New since last snapshot** lists
 the ten notable arrivals since the previous retained day. Both rank by authoritative coverage,
-first-party status, open weights, and adoption, and collapse version variants. **Leaderboard
-update** reports when the top of a decision view changes, with the challenger, the model it
-overtook, both scores, and the delta. A **No changes** card appears when there is nothing material.
+first-party status, open weights, and adoption, collapse version variants, and link each arrival to
+its Artificial Analysis or Hugging Face source. **Leaderboard update** reports when the top of a
+decision view changes, with the challenger, the model it overtook, both scores, and the delta. A
+**No changes** card appears when there is nothing material.
 Re-running on the same day replaces that day's history file and yields the same deltas.
 
 There is no database, ORM, migration, persistent cache, checkpoint, resume flow, or built-in
