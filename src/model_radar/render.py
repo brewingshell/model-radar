@@ -228,20 +228,16 @@ _CSP = (
 _FAVICON_SVG = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">'
     '<rect width="32" height="32" rx="7" fill="#0d141b"/>'
-    '<g fill="none" stroke="#66d5c5" stroke-width="1.5">'
-    '<circle cx="16" cy="16" r="4.5"/>'
-    '<circle cx="16" cy="16" r="8"/>'
-    '<circle cx="16" cy="16" r="11.5"/>'
+    '<g fill="none" stroke="#2f7d76" stroke-width="1.2">'
+    '<circle cx="16" cy="16" r="9.8"/>'
+    '<circle cx="16" cy="16" r="13.2"/>'
     "</g>"
-    '<g stroke="#66d5c5" stroke-width="1.4" stroke-linecap="round" opacity=".5">'
-    '<line x1="16" y1="16" x2="16" y2="4.5"/>'
-    '<line x1="16" y1="16" x2="16" y2="27.5"/>'
-    '<line x1="16" y1="16" x2="4.5" y2="16"/>'
-    '<line x1="16" y1="16" x2="27.5" y2="16"/>'
-    "</g>"
-    '<line x1="16" y1="16" x2="24.8" y2="7.2" stroke="#66d5c5" stroke-width="2.2" '
+    '<path d="M16 16 L16 2.8 A13.2 13.2 0 0 1 26.4 8.6 L16 16 Z" fill="#66d5c5" opacity=".18"/>'
+    '<line x1="16" y1="16" x2="26.4" y2="8.6" stroke="#66d5c5" stroke-width="1.9" '
     'stroke-linecap="round"/>'
-    '<circle cx="24.8" cy="7.2" r="2.3" fill="#66d5c5"/>'
+    '<circle cx="22" cy="11.4" r="1.9" fill="#66d5c5"/>'
+    '<circle cx="10.6" cy="20" r="1.2" fill="#66d5c5" opacity=".55"/>'
+    '<circle cx="16" cy="16" r="1.7" fill="#66d5c5"/>'
     "</svg>"
 )
 _FAVICON = "data:image/svg+xml;base64," + base64.b64encode(_FAVICON_SVG.encode("utf-8")).decode(
