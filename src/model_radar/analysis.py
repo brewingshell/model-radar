@@ -107,6 +107,42 @@ def _edge_model_ids(models: list[ModelRecord], limit: int = 10) -> list[str]:
     return [model.model_id for model in ranked[:limit]]
 
 
+def notable_new_model_names(models: list[ModelRecord], limit: int = 6) -> list[str]:
+    """Human-facing names of the most significant new models, one per family.
+
+    Raw catalog diffs are dominated by community re-uploads, so this ranks by
+    authoritative coverage (Artificial Analysis), then first-party releases,
+    open weights, and adoption, and collapses thinking-level variants so a
+    release like ``Claude Opus 5.5`` appears once.
+    """
+
+    def importance(model: ModelRecord) -> tuple[bool, float, bool, bool, bool, int, int, str]:
+        value = model.name.casefold()
+        noisy = bool(_EDGE_VARIANT.search(value) or _EDGE_DERIVATIVE.search(value))
+        return (
+            model.intelligence_index is not None,
+            model.intelligence_index or 0.0,
+            not noisy,
+            _is_first_party_hf_name(model.name),
+            model.open_weights is True,
+            model.likes or 0,
+            model.downloads or 0,
+            model.name.casefold(),
+        )
+
+    selected: list[str] = []
+    families: set[str] = set()
+    for model in sorted(models, key=importance, reverse=True):
+        family = _benchmark_family_key(model.name)
+        if family in families:
+            continue
+        families.add(family)
+        selected.append(_model_family_name(model.name))
+        if len(selected) == limit:
+            break
+    return selected
+
+
 def _mini_model_ids(models: list[ModelRecord], limit: int = 10) -> list[str]:
     """Toaster-class models at or below the mini size ceiling.
 

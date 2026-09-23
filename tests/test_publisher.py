@@ -97,8 +97,9 @@ def test_changes_include_structured_items(tmp_path):
     publisher.publish(make_snapshot("Second", day=19))
 
     published = parse_snapshot((tmp_path / "out" / "current" / "snapshot.json").read_bytes())
-    assert published.changes["items"]
-    assert {item["kind"] for item in published.changes["items"]} >= {"new"}
+    kinds = {item["kind"] for item in published.changes["items"]}
+    assert "new" in kinds
+    assert "source" not in kinds
     assert all("label" in item and "detail" in item for item in published.changes["items"])
 
 

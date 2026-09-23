@@ -9,6 +9,7 @@ from model_radar.analysis import (
     attach_benchmarks,
     build_views,
     normalize,
+    notable_new_model_names,
 )
 from model_radar.models import CopilotConfig, CopilotModelConfig, RawRecord
 
@@ -774,6 +775,46 @@ def test_mini_model_ids_orders_scored_before_unscored():
 
     assert by_id[ids[0]].name == "Qwen3-0.6B"
     assert by_id[ids[1]].name == "Cactus-Compute/needle3"
+
+
+def test_notable_new_models_ranks_coverage_and_dedupes_variants():
+    models = normalize(
+        [
+            RawRecord(
+                source_id="someone/Opus-5.5-GGUF",
+                name="someone/Opus-5.5-GGUF",
+                capabilities=["gguf"],
+                downloads=90000,
+                provenance=["huggingface"],
+            ),
+            RawRecord(
+                source_id="aa/opus-max",
+                name="Claude Opus 5.5 (max)",
+                intelligence_index=58.0,
+                provenance=["artificial-analysis"],
+            ),
+            RawRecord(
+                source_id="aa/opus-high",
+                name="Claude Opus 5.5 (high)",
+                intelligence_index=54.0,
+                provenance=["artificial-analysis"],
+            ),
+            RawRecord(
+                source_id="moonshotai/Kimi-K2.5",
+                name="moonshotai/Kimi-K2.5",
+                open_weights=True,
+                likes=2875,
+                downloads=312782,
+                provenance=["huggingface"],
+            ),
+        ]
+    )
+
+    names = notable_new_model_names(models)
+
+    assert names[0] == "Claude Opus 5.5"
+    assert names.count("Claude Opus 5.5") == 1
+    assert "moonshotai/Kimi-K2.5" in names
 
 
 def test_edge_view_includes_tagged_models_and_collapses_quants():

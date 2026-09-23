@@ -9,6 +9,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from model_radar.analysis import notable_new_model_names
 from model_radar.codec import canonical_json, parse_snapshot, snapshot_json
 from model_radar.models import Snapshot
 from model_radar.render import render_html
@@ -199,34 +200,21 @@ def _summarize_changes(current: Snapshot, previous: Snapshot | None) -> dict[str
             ],
             "previous_snapshot_id": None,
         }
-    current_names = {model.name for model in current.models}
     previous_names = {model.name for model in previous.models}
-    new_names = sorted(current_names - previous_names)
+    new_models = [model for model in current.models if model.name not in previous_names]
     summary: list[str] = []
     items: list[dict[str, Any]] = []
-    if new_names:
-        detail = f"{len(new_names)} model records entered the catalog."
-        summary.append(f"{detail} Examples: {', '.join(new_names[:4])}.")
+    if new_models:
+        notable = notable_new_model_names(new_models)
+        detail = f"{len(new_models)} models new to the catalog."
+        summary.append(f"{detail} Notable: {', '.join(notable[:4])}.")
         items.append(
             {
                 "kind": "new",
                 "label": "New models",
-                "count": len(new_names),
+                "count": len(new_models),
                 "detail": detail,
-                "examples": new_names[:6],
-            }
-        )
-    current_sources = current.summary.get("source_record_count", 0)
-    previous_sources = previous.summary.get("source_record_count", 0)
-    if current_sources != previous_sources:
-        detail = f"Source records moved from {previous_sources} to {current_sources}."
-        summary.append(detail)
-        items.append(
-            {
-                "kind": "source",
-                "label": "Source records",
-                "detail": detail,
-                "examples": [],
+                "examples": notable,
             }
         )
     if not summary:
