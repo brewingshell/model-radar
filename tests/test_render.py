@@ -264,8 +264,12 @@ def test_whats_new_renders_structured_cards():
                 {
                     "kind": "leaderboard",
                     "label": "Leaderboard update",
-                    "detail": "Claude Opus 5.5 overtook Claude Opus 5 on Performance, 58 vs 51 (+7).",
-                    "examples": ["Claude Opus 5", "Claude Opus 5.5"],
+                    "count": 2,
+                    "detail": "2 leaderboards changed hands.",
+                    "examples": [
+                        "Claude Opus 5.5 overtook Claude Opus 5 on Performance, 58 vs 51 (+7).",
+                        "GPT-6 Sol overtook GPT-5.6 Sol on Value per token, 44 vs 40 (+4).",
+                    ],
                 },
                 {
                     "kind": "quiet",
@@ -289,6 +293,11 @@ def test_whats_new_renders_structured_cards():
     assert 'class="change-badge">New since last snapshot' in html
     assert 'class="change-badge">Leaderboard update' in html
     assert 'class="change-count">3' in html
+    assert "Claude Opus 5.5 overtook Claude Opus 5 on Performance, 58 vs 51 (+7)." in html
+    assert (
+        '<span class="change-chip">GPT-6 Sol overtook GPT-5.6 Sol on Value per token, 44 vs 40 (+4).</span>'
+        in html
+    )
     assert ">Alpha<" in html
     assert 'class="change-list"' not in html
 

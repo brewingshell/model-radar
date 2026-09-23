@@ -64,11 +64,11 @@ def test_leaderboard_update_reports_new_leader_and_delta():
     changes = _summarize_changes(current, previous)
 
     leaders = [item for item in changes["items"] if item["kind"] == "leaderboard"]
+    assert len(leaders) == 1
+    assert leaders[0]["count"] == 1
     assert any(
-        "Claude Opus 5.5" in item["detail"]
-        and "Claude Opus 5" in item["detail"]
-        and "+7" in item["detail"]
-        for item in leaders
+        "Claude Opus 5.5" in example and "Claude Opus 5" in example and "+7" in example
+        for example in leaders[0]["examples"]
     )
 
 

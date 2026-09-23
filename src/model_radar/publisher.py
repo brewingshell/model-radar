@@ -316,9 +316,23 @@ def _summarize_changes(
     if daily_item is not None:
         summary.append(f"{daily_item['detail']} Notable: {', '.join(daily_item['examples'][:4])}.")
         items.append(daily_item)
-    for update in _leaderboard_updates(current, previous):
-        summary.append(update["detail"])
-        items.append(update)
+    leaderboard = _leaderboard_updates(current, previous)
+    if leaderboard:
+        details = [update["detail"] for update in leaderboard]
+        summary.extend(details)
+        items.append(
+            {
+                "kind": "leaderboard",
+                "label": "Leaderboard update",
+                "count": len(leaderboard),
+                "detail": (
+                    "1 leaderboard changed hands."
+                    if len(leaderboard) == 1
+                    else f"{len(leaderboard)} leaderboards changed hands."
+                ),
+                "examples": details,
+            }
+        )
     if not summary:
         detail = "No material model or shortlist changes were detected."
         summary.append(detail)
